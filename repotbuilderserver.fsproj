@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+ 
+    <Compile Include="koncept.fs"/>
+    <Compile Include="Hypercube.fs"/>
+    <Compile Include="Dimensions.fs"/>
+    <Compile Include="Reportmodel.fs"/>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+</Project>
