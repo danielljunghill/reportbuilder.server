@@ -116,46 +116,61 @@ module Koncept =
     let add koncept (ParentKoncept parent) =
         match parent with
         | AbstractKoncept  (ak, koncepts) ->  (ak , koncepts @ [ koncept]) |> AbstractKoncept |> Ok
-        | _ -> Error (sprintf "%A koncept cannot be added to %A" koncept parent)
+        | _ -> Error (sprintf "%A koncept cannot be added parent to %A" parent koncept )
 
-    let rec map (parent: Result<Koncept Option, String>) (koncept: Koncept) : Result<Koncept Option, String> =
-        match koncept with
-        | Koncept.AbstractKoncept (ak, koncepts) ->
-            let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
-            let accKoncept = koncepts |> List.fold map newKoncept 
-            let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
-                let fn2 (acc: Koncept option) (p: Koncept option)  =
-                    match p with
-                    | None -> acc |> Ok
-                    | Some parentKoncept -> 
-                        match acc with
-                        | Some childKoncept -> 
-                            parentKoncept
-                            |> ParentKoncept 
-                            |> add childKoncept
-                        | None ->  parentKoncept |> Ok
-                        |> Result.map Some
-                Result.bind (fn2 acc) parent
-            accKoncept |> Result.bind (fn1 parent)
-        | Koncept.ValueKoncept vk ->
-            let fn (parent: Koncept option) =
-                match parent with
-                | Some p -> ValueKoncept.addToKoncept vk p
-                | None ->  vk |> Koncept.ValueKoncept |> Ok
-                |> Result.map Some
-            parent |> Result.bind fn
+    let map (koncept: Koncept) =
+        let rec map' (parent: Result<Koncept Option, String>) (koncept: Koncept) : Result<Koncept Option, String> =
+     
+            match koncept with
+            | Koncept.AbstractKoncept (ak, koncepts) ->
+                let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
+                let accKoncept = koncepts |> List.fold map newKoncept 
+                let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
+                    let fn2 (acc: Koncept option) (p: Koncept option)  =
+                        match p with
+                        | None -> acc |> Ok
+                        | Some parentKoncept -> 
+                            match acc with
+                            | Some childKoncept -> 
+                                parentKoncept
+                                |> ParentKoncept 
+                                |> add childKoncept
+                            | None ->  parentKoncept |> Ok
+                            |> Result.map Some
+                    Result.bind (fn2 acc) parent
+                accKoncept |> Result.bind (fn1 parent)
+            | Koncept.ValueKoncept vk ->
+                let fn (parent: Koncept option) =
+                    match parent with
+                    | Some p -> ValueKoncept.addToKoncept vk p
+                    | None ->  vk |> Koncept.ValueKoncept |> Ok
+                    |> Result.map Some
+                parent |> Result.bind fn
 
-        | Koncept.Cube _ ->
-            Error "Handling of Cube not implemented"
+            | Koncept.Cube _ ->
+                Error "Handling of Cube not implemented"
 
 //  open Koncept
 //  open AbstractKoncept
 //  open ValueKoncept
 
-let a1 = Koncept.createAbstract "Head abstract"
+let a1 = 
+    "Head abstract1"  
+    |> Koncept.createAbstract 
+    |> Koncept.ParentKoncept  
+    |> Koncept.add ("Sub abstract2" |> Koncept.createAbstract)
+
 let v1 = Koncept.createValue "First Values"
-let added = a1 |> Koncept.ParentKoncept |> Koncept.add v1
-let added2 = v1 |> Koncept.ParentKoncept |> Koncept.add v1 
+let added =
+    a1
+    |> Result.map Koncept.ParentKoncept 
+    |> Result.bind (Koncept.add v1)
+
+let mapped = 
+    added 
+    |> Result.bind (Koncept.map (Ok None))
+    
+    //|> (Koncept.add v1)let added2 = v1 |> Koncept.ParentKoncept |> Koncept.add v1 
 
                 // let f' 
                 // let t =
