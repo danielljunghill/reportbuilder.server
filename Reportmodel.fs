@@ -93,7 +93,62 @@ module ValueKoncept =
         | DimensionalKoncept.AbstractKoncept (ak, koncepts) -> (ak, koncepts @ [  DimensionalKoncept.AbstractKoncept (ak, []) ]) |> Ok
         | DimensionalKoncept.ValueKoncept _ -> Error (sprintf "AbstractKoncept koncept cannot be added to %A" parent)
     
+module Koncept =
+    type ParentKoncept = ParentKoncept of Koncept
+    let add koncept (ParentKoncept parent) =
+        match parent with
+        | AbstractKoncept  (ak, koncepts) ->  (ak , koncepts @ [ koncept]) |> AbstractKoncept |> Ok
+        | _ -> Error (sprintf "AbstractKoncept koncept cannot be added to %A" parent)
 
+    let rec map (parent: Result<Koncept Option, String>) (koncept: Koncept) : Result<Koncept Option, String> =
+        match koncept with
+        | Koncept.AbstractKoncept (ak, koncepts) ->
+            let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
+            let accKoncept = koncepts |> List.fold map newKoncept 
+            let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
+                let fn2 (acc: Koncept option) (p: Koncept option)  =
+                    match p with
+                    | None -> acc |> Ok
+                    | Some parentKoncept -> 
+                        match acc with
+                        | Some childKoncept -> 
+                            parentKoncept
+                            |> ParentKoncept 
+                            |> add childKoncept
+                        | None ->  parentKoncept |> Ok
+                        |> Result.map Some
+                Result.bind (fn2 acc) parent
+            accKoncept |> Result.bind (fn1 parent)
+        | Koncept.ValueKoncept vk ->
+            let fn (parent: Koncept option) =
+                match parent with
+                | Some p -> ValueKoncept.addToKoncept vk p
+                | None ->  vk |> Koncept.ValueKoncept |> Ok
+                |> Result.map Some
+            parent |> Result.bind fn
+
+        | Koncept.Cube _ ->
+            Error "Handling of Cube not implemented"
+                
+                // let f' 
+                // let t =
+                //     parent 
+                //     |> Result.bind fn
+
+                //     let innerFn (pi: Koncept option) 
+
+                // Result.bind 
+                // match parent with
+                // | None -> accKoncept |> Ok
+                // | Some p -> 
+                //         match k with
+                //         | Some k' -> 'k
+                //         | None -> add 
+               
+
+
+module 
+   
 module HyperCube =
 
     let addToKoncept (cube: HyperCube) (parent: Koncept) =
@@ -126,7 +181,7 @@ module HyperDimension =
     let openedWithoutDefault = DimensionWithoutDefault >> Opened
 
 module HyperCube =
-
+    let 
 
 module Koncept =
 

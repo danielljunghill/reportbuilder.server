@@ -243,6 +243,27 @@ module Model =
             Koncepts = TableValueKoncepts.init()
         }
 
+    type ValueKonceptId = ValueKonceptId of Guid
+    type ValueKonceptName = KonceptName of String
+    type ValueKoncept =
+        {
+            Name: ValueKonceptName
+            Id: ValueKonceptId
+        }
+
+
+    type AbstractKonceptId = AbstractKonceptId of Guid
+    type AbstractKonceptName = AbstractKonceptName of String
+    type AbstractKoncept =
+        {
+            Name: ValueKonceptName
+            Id: ValueKonceptId
+        }
+
+    type Koncept =
+        | Value of ValueKoncept
+        | 
+
 
 
 
