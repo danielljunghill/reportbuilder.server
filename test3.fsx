@@ -29,8 +29,8 @@ type Dimension =
      | DimensionWithoutDefault of Domain
 
 module Dimension =
-    let createWithDefault defaultMember domain =
-        DimensionWithDefault (defaultMember, domain)
+    let createWithDefault domain =
+        DimensionWithDefault (DefaultMember "Total", domain)
     let createWithoutDefault domain =
         DimensionWithoutDefault domain
 
@@ -178,6 +178,7 @@ module Koncept =
             | Koncept.Cube (hc,koncepts)->
                 Error "Handling of Cube not implemented"
         map' (Ok None) 
+
     module Result =    
         let join (r: Result<Result<_,_>,_>) =
             match r with
@@ -213,7 +214,7 @@ module Koncept =
                         |> Result.map Some
                     parent |> Result.bind fn
                 | Koncept.Cube (hc,koncepts)->
-                    Error "Handling of Cube not implemented"
+                    koncept|> Some |> Ok
             Result.bind fmap koncept
         map' (Ok None) koncept
         |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
@@ -251,7 +252,24 @@ let mapKoncept (koncept: Koncept) =
 
 let added2 = Koncept.map mapKoncept added
 let added3 = Koncept.map mapKoncept added2
+let hyperDimension = 
+    ["kv1"; "kv2"; "kv3";"kv4"]
+    |> Domain.create "Kvartal" 
+    |> Dimension.createWithDefault
+    |> Closed
+    |> HyperCube.create "Kvartal och annat"  
 
+let addCube (koncept: Koncept) =
+    match koncept with
+    | Koncept.AbstractKoncept (ak,koncepts) ->
+        if ak.Name = AbstractKonceptName "Sub abstract2" then
+            Koncept.AbstractKoncept (ak, koncepts @ ([ Koncept.Cube (hyperDimension, []) ]))
+        else
+            koncept 
+    | _-> koncept
+    |> Ok
+
+let added4 = Koncept.map addCube added3
     //|> (Koncept.add v1)let added2 = v1 |> Koncept.ParentKoncept |> Koncept.add v1 
 
                 // let f' 
