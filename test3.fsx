@@ -147,7 +147,7 @@ module Koncept =
         | AbstractKoncept  (ak, koncepts) ->  (ak , koncepts @ [ koncept]) |> AbstractKoncept |> Ok
         | _ -> Error (sprintf "%A koncept cannot be added parent to %A" parent koncept )
 
-    let map (koncept: Koncept) =
+    let iter (koncept: Koncept) =
         let rec map' (parent: Result<Koncept Option, String>) (koncept: Koncept) : Result<Koncept Option, String> =
             match koncept with
             | Koncept.AbstractKoncept (ak, koncepts) ->
@@ -178,7 +178,13 @@ module Koncept =
             | Koncept.Cube (hc,koncepts)->
                 Error "Handling of Cube not implemented"
         map' (Ok None) 
-    let map2 (f: Koncept -> Result<Koncept,string>) koncept =
+    module Result =    
+        let join (r: Result<Result<_,_>,_>) =
+            match r with
+            | Result.Ok ri-> ri
+            | Result.Error err -> Error err
+
+    let map (f: Koncept -> Result<Koncept,string>) koncept =
         let rec map' (parent: Result<Koncept Option, String>) (koncept: Result<Koncept,string>) : Result<Koncept Option, String> =
             let fmap koncept =
                 match koncept with
@@ -206,11 +212,12 @@ module Koncept =
                         | None ->  vk |> Koncept.ValueKoncept |> Ok
                         |> Result.map Some
                     parent |> Result.bind fn
-
                 | Koncept.Cube (hc,koncepts)->
                     Error "Handling of Cube not implemented"
             Result.bind fmap koncept
         map' (Ok None) koncept
+        |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
+        |> Result.join
      
 //  open Koncept
 //  open AbstractKoncept
@@ -232,7 +239,7 @@ let added =
 //     added 
 //     |> Result.bind (Koncept.map )
 
-let addKonceptToSub (koncept: Koncept) =
+let mapKoncept (koncept: Koncept) =
     match koncept with
     | Koncept.AbstractKoncept (ak,koncepts) ->
         if ak.Name = AbstractKonceptName "Sub abstract2" then
@@ -242,8 +249,8 @@ let addKonceptToSub (koncept: Koncept) =
     | _ -> koncept
     |> Ok
 
-let added2 = Koncept.map2 addKonceptToSub added
-let added3 = Koncept.map2 addKonceptToSub (Result.map (fun (v: Option<Koncept>) -> v.Value) added2)
+let added2 = Koncept.map mapKoncept added
+let added3 = Koncept.map mapKoncept added2
 
     //|> (Koncept.add v1)let added2 = v1 |> Koncept.ParentKoncept |> Koncept.add v1 
 
