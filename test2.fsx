@@ -43,7 +43,7 @@ open System
 //     }
 
 
-module Parent =
+module DataModel =
 
     type PageId = | PageId of Guid
     type Page =
@@ -152,7 +152,7 @@ let add key (value: string) (table: Map<string,string List>) =
 let r3  = add "damien" "petoman" map 
 let r4 = add "lars" "flatulist" r3
 module Table =
-    open Parent
+    open DataModel
     type Table<'b,'a when 'a: comparison> = | Table of Map<'a,'b List>
 
     module Table =
@@ -183,17 +183,37 @@ module Table =
             //|> List.reduce
 
 open Table
-open Parent
+open DataModel
 
 
 
+type TableValueKoncepts = 
+    {
+        Parents: Table<ValueKonceptId,ValueKonceptParentId>
+        Values: Map<ValueKonceptId, ValueKoncept * ValueKonceptParentId>
+    }
 
 
-type TableValueKoncepts = Table<ValueKoncept,ValueKonceptParentId>
+
 module TableValueKoncepts = 
     //     let add key value (table: TableValueKoncepts) =
     //         table |> Table.add key value
-   let init = Table.init<ValueKoncept,ValueKonceptParentId>
+   let init = 
+    {
+        Parents= Table.init<ValueKonceptId,ValueKonceptParentId>()
+        Values= new Map<ValueKonceptId, ValueKoncept * ValueKonceptParentId>(Seq.empty)
+    }
+
+    let addToPage (valueKoncept:ValueKoncept) (page:Page) (table:TableValueKoncepts) =
+        let paentId = page.Id |> AbstractKonceptParentId.Page |> ValueKonceptParentId.AbstractParent 
+        match table.Values.ContainsKey valueKoncept.Id with
+        | true -> 
+            let k, pid = table.Values.Item(valueKoncept.Id)
+            Table.remove pid k.Id table.Parents
+            |> Table.add paentId k.Id table.Parents
+        | false ->
+
+    
 
 
 
@@ -243,26 +263,35 @@ module Model =
             Koncepts = TableValueKoncepts.init()
         }
 
-    type ValueKonceptId = ValueKonceptId of Guid
-    type ValueKonceptName = KonceptName of String
-    type ValueKoncept =
-        {
-            Name: ValueKonceptName
-            Id: ValueKonceptId
-        }
+    let addPage (page:Page) (model:Model) =
+        match model.Pages |> List.tryFind (fun p -> p.Id = page.Id) with
+        | Some p ->  sprintf "Page %A cannot be added since it aldready exists" page |> Error
+        | None -> { model with Pages = model.Pages @ [page]} |> Ok
+
+    let addAbstractKoncept (child:AbstractKoncept) (parent: AbstractKoncept) = 
 
 
-    type AbstractKonceptId = AbstractKonceptId of Guid
-    type AbstractKonceptName = AbstractKonceptName of String
-    type AbstractKoncept =
-        {
-            Name: ValueKonceptName
-            Id: ValueKonceptId
-        }
 
-    type Koncept =
-        | Value of ValueKoncept
-        | 
+    // type ValueKonceptId = ValueKonceptId of Guid
+    // type ValueKonceptName = KonceptName of String
+    // type ValueKoncept =
+    //     {
+    //         Name: ValueKonceptName
+    //         Id: ValueKonceptId
+    //     }
+
+
+    // type AbstractKonceptId = AbstractKonceptId of Guid
+    // type AbstractKonceptName = AbstractKonceptName of String
+    // type AbstractKoncept =
+    //     {
+    //         Name: ValueKonceptName
+    //         Id: ValueKonceptId
+    //     }
+
+    // type Koncept =
+    //     | Value of ValueKoncept
+    //     | 
 
 
 
