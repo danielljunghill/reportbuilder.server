@@ -92,7 +92,7 @@ module ValueKoncept =
      
     let addToDimensionalKoncept (vk: ValueKoncept) (parent: DimensionalKoncept) = 
         match parent with
-        | DimensionalKoncept.AbstractKoncept (ak, d) -> (ak, d @ [ (vk |> DimensionalKoncept.ValueKoncept) ]) |> Ok
+        | DimensionalKoncept.AbstractKoncept (ak, d) -> (ak, d @ [ (vk |> DimensionalKoncept.ValueKoncept) ]) |> DimensionalKoncept.AbstractKoncept|> Ok
         | DimensionalKoncept.ValueKoncept _ -> Error (sprintf "ValueKoncept koncept cannot be added to %A" parent)
 
     // let addtoPage 
@@ -111,10 +111,11 @@ module ValueKoncept =
   
     let addToDimensionalKoncept (ak: AbstractKoncept) (parent: DimensionalKoncept) = 
         match parent with
-        | DimensionalKoncept.AbstractKoncept (ak, koncepts) -> (ak, koncepts @ [  DimensionalKoncept.AbstractKoncept (ak, []) ]) |> Ok
+        | DimensionalKoncept.AbstractKoncept (ak, koncepts) -> (ak, koncepts @ [  DimensionalKoncept.AbstractKoncept (ak, []) ]) |> DimensionalKoncept.AbstractKoncept |> Ok
         | DimensionalKoncept.ValueKoncept _ -> Error (sprintf "AbstractKoncept koncept cannot be added to %A" parent)
 
 module HyperCube =
+
     let create name dimension =
         {
             Id = Guid.NewGuid() |> HyperCubeId
@@ -128,13 +129,59 @@ module HyperCube =
             | AbstractKoncept (ak,koncepts) -> (ak, koncepts @ [  Koncept.Cube (hc,[]) ]) |> Koncept.AbstractKoncept |> Ok
             | _ -> Error (sprintf "AbstractKoncept koncept cannot be added to %A" parent)
 
+    let addDimension hc dimension =
+        { hc with Tail = hc.Tail @ [ dimension ]}
+
+
+module Result =    
+    let join (r: Result<Result<_,_>,_>) =
+        match r with
+        | Result.Ok ri-> ri
+        | Result.Error err -> Error err
+
 module DimensionalKoncept =
-    let map (koncept: DimensionalKoncept) =
-        let rec map' (parent: Result<DimensionalKoncept Option, String>) (koncept: DimensionalKoncept) =
+        type ParentDimensionalKoncept= | ParentDimensionalKoncept of DimensionalKoncept
+
+        let create = ValueKoncept.create >> DimensionalKoncept.ValueKoncept
+        let add (koncept: DimensionalKoncept) (ParentDimensionalKoncept parent) =
             match koncept with
-            | DimensionalKoncept.AbstractKoncept _ -> ()
-            | DimensionalKoncept.ValueKoncept _ ->  ()
-        map' (Ok None) koncept
+            | DimensionalKoncept.AbstractKoncept (ak,koncepts) -> 
+                (ak, koncepts @ [ koncept])
+                 |> DimensionalKoncept.AbstractKoncept|> Ok
+            | _ -> Error "cannot add"
+        let map f koncept =
+            let rec map' parent koncept  =
+                let fmap koncept =
+                    match koncept with
+                    | DimensionalKoncept.AbstractKoncept (ak, koncepts) ->
+                        let newKoncept = (ak, []) |> DimensionalKoncept.AbstractKoncept |> Some |> Ok
+                        let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
+                        let fn1 parent acc =
+                            let fn2 acc p =
+                                match p with
+                                | None -> acc |> Ok
+                                | Some parentKoncept -> 
+                                    match acc with
+                                    | Some childKoncept -> 
+                                        parentKoncept
+                                        |> ParentDimensionalKoncept 
+                                        |> add childKoncept
+                                    | None ->  parentKoncept |> Ok
+                                    |> Result.map Some
+                            Result.bind (fn2 acc) parent
+                        accKoncept |> Result.bind (fn1 parent)
+                    | DimensionalKoncept.ValueKoncept vk -> 
+                        let fn parent =
+                            match parent with
+                            | Some p -> ValueKoncept.addToDimensionalKoncept vk p
+                            | None ->  vk |> DimensionalKoncept.ValueKoncept |> Ok
+                            |> Result.map Some
+                        parent |> Result.bind fn
+                Result.bind fmap koncept
+            map' (Ok None) koncept
+            |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
+            |> Result.join
+
 
 module Koncept =
     let createAbstract name =
@@ -179,21 +226,15 @@ module Koncept =
                 Error "Handling of Cube not implemented"
         map' (Ok None) 
 
-    module Result =    
-        let join (r: Result<Result<_,_>,_>) =
-            match r with
-            | Result.Ok ri-> ri
-            | Result.Error err -> Error err
-
-    let map (f: Koncept -> Result<Koncept,string>) koncept =
-        let rec map' (parent: Result<Koncept Option, String>) (koncept: Result<Koncept,string>) : Result<Koncept Option, String> =
+    let map (f: Koncept -> Result<_,_>) koncept =
+        let rec map' parent koncept  =
             let fmap koncept =
                 match koncept with
                 | Koncept.AbstractKoncept (ak, koncepts) ->
                     let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
                     let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
-                    let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
-                        let fn2 (acc: Koncept option) (p: Koncept option)  =
+                    let fn1 parent acc =
+                        let fn2 acc p =
                             match p with
                             | None -> acc |> Ok
                             | Some parentKoncept -> 
@@ -207,18 +248,28 @@ module Koncept =
                         Result.bind (fn2 acc) parent
                     accKoncept |> Result.bind (fn1 parent)
                 | Koncept.ValueKoncept vk -> 
-                    let fn (parent: Koncept option) =
+                    let fn parent =
                         match parent with
                         | Some p -> ValueKoncept.addToKoncept vk p
                         | None ->  vk |> Koncept.ValueKoncept |> Ok
                         |> Result.map Some
                     parent |> Result.bind fn
                 | Koncept.Cube (hc,koncepts)->
-                    koncept|> Some |> Ok
+                    let newKoncept = f koncept
+                    let fn (parent: Koncept option) =
+                        match parent with
+                            | Some p -> 
+                                let f koncept = add koncept (ParentKoncept p) 
+                                Result.bind f newKoncept
+                            | None -> newKoncept 
+                        |> Result.map Some
+                    Result.bind fn parent
             Result.bind fmap koncept
         map' (Ok None) koncept
         |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
         |> Result.join
+
+
      
 //  open Koncept
 //  open AbstractKoncept
@@ -252,24 +303,89 @@ let mapKoncept (koncept: Koncept) =
 
 let added2 = Koncept.map mapKoncept added
 let added3 = Koncept.map mapKoncept added2
-let hyperDimension = 
-    ["kv1"; "kv2"; "kv3";"kv4"]
-    |> Domain.create "Kvartal" 
-    |> Dimension.createWithDefault
-    |> Closed
-    |> HyperCube.create "Kvartal och annat"  
 
-let addCube (koncept: Koncept) =
+let optionKoncept (koncept: Koncept) (konceptAdd: Koncept option) =
+    match konceptAdd with
+    | Some k -> k
+    | None -> koncept
+    |> Ok
+    
+let mapCube (f:HyperCube -> DimensionalKoncept List-> Result<Koncept option,_>) (koncept: Koncept) =
+    match koncept with
+    | Koncept.Cube (hc,koncepts) ->
+        f hc koncepts
+        |> Result.bind (optionKoncept koncept)
+    | _-> koncept |> Ok
+   
+
+let mapAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<Koncept option,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.AbstractKoncept (ak,koncepts) ->
+        f ak koncepts
+        |> Result.bind (optionKoncept koncept) 
+    | _-> koncept |> Ok
+ 
+
+let mapValueKoncept (f:ValueKoncept -> Result<Koncept option,_>) (koncept: Koncept) =
+    match koncept with
+    | Koncept.ValueKoncept vk ->
+        f vk
+        |> Result.bind (optionKoncept koncept) 
+    | _-> koncept |> Ok
+
+
+let addCube koncept =
+    let hyperDimension = 
+        ["kv1"; "kv2"; "kv3";"kv4"]
+        |> Domain.create "Kvartal" 
+        |> Dimension.createWithDefault
+        |> Closed
+        |> HyperCube.create "Kvartal och annat"  
+
+    let f ak koncepts =
         if ak.Name = AbstractKonceptName "Sub abstract2" then
             Koncept.AbstractKoncept (ak, koncepts @ ([ Koncept.Cube (hyperDimension, []) ]))
         else
-            koncept 
-    | _-> koncept
-    |> Ok
+            koncept  
+        |> Ok
+
+    mapAbstractKoncept f koncept
+    |>  Result.mapError (fun err -> sprintf "%A" err)
+    // |> Result.mapError (fun err -> sprintf "%A" err)
+
 
 let added4 = Koncept.map addCube added3
+
+let addDimensionalKoncept koncept =
+    let dimKoncepts = [ DimensionalKoncept.create "Intäkter" ; DimensionalKoncept.create "Försäljning cyklar"; DimensionalKoncept.create "Bidrag" ]
+    let f (hc: HyperCube) dimension =
+        if hc.Name = HyperCubeName "Kvartal och annat" then
+            (hc,dimKoncepts) |> Koncept.Cube 
+        else
+            koncept 
+        |> Ok
+    mapCube f koncept
+
+let added5 = Koncept.map addDimensionalKoncept added4
+//add
+
+
+let addValue Koncept =
+    let f (ak:AbstractKoncept) koncepts =
+       if ak.Name = AbstractKonceptName "Head abstract1" then
+            (ak, koncepts @ [ "dagen d" |> ValueKoncept.create |> Koncept.ValueKoncept]) |> Koncept.AbstractKoncept
+       else
+            koncept
+       |> Ok
+    mapAbstractKoncept f  
+  
+
+let added6 = Koncept.map addValue  added5        
+// let addDimensionsToCube dimension koncept =
+//     let f (hc: HyperCube) koncepts =
+//         if hc.Name = "Kvartal och annat" then
+//             hc, d
+   
     //|> (Koncept.add v1)let added2 = v1 |> Koncept.ParentKoncept |> Koncept.add v1 
 
                 // let f' 
