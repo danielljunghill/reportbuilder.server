@@ -309,7 +309,7 @@ let optionKoncept (koncept: Koncept) (konceptAdd: Koncept option) =
     | Some k -> k
     | None -> koncept
     |> Ok
-    
+
 let mapCube (f:HyperCube -> DimensionalKoncept List-> Result<Koncept option,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.Cube (hc,koncepts) ->
@@ -334,7 +334,7 @@ let mapValueKoncept (f:ValueKoncept -> Result<Koncept option,_>) (koncept: Konce
     | _-> koncept |> Ok
 
 
-let addCube koncept =
+let addCube  =
     let hyperDimension = 
         ["kv1"; "kv2"; "kv3";"kv4"]
         |> Domain.create "Kvartal" 
@@ -344,38 +344,40 @@ let addCube koncept =
 
     let f ak koncepts =
         if ak.Name = AbstractKonceptName "Sub abstract2" then
-            Koncept.AbstractKoncept (ak, koncepts @ ([ Koncept.Cube (hyperDimension, []) ]))
+            (ak, koncepts @ ([ Koncept.Cube (hyperDimension, []) ])) 
+            |> Koncept.AbstractKoncept 
+            |> Some
         else
-            koncept  
+            None
         |> Ok
 
-    mapAbstractKoncept f koncept
-    |>  Result.mapError (fun err -> sprintf "%A" err)
+    mapAbstractKoncept f 
+    >> Result.mapError (fun err -> sprintf "%A" err)
     // |> Result.mapError (fun err -> sprintf "%A" err)
 
 
 let added4 = Koncept.map addCube added3
 
-let addDimensionalKoncept koncept =
+let addDimensionalKoncept  =
     let dimKoncepts = [ DimensionalKoncept.create "Intäkter" ; DimensionalKoncept.create "Försäljning cyklar"; DimensionalKoncept.create "Bidrag" ]
     let f (hc: HyperCube) dimension =
         if hc.Name = HyperCubeName "Kvartal och annat" then
-            (hc,dimKoncepts) |> Koncept.Cube 
+            (hc,dimKoncepts) |> Koncept.Cube |> Some
         else
-            koncept 
+            None 
         |> Ok
-    mapCube f koncept
+    mapCube f 
 
 let added5 = Koncept.map addDimensionalKoncept added4
 //add
 
 
-let addValue Koncept =
+let addValue  =
     let f (ak:AbstractKoncept) koncepts =
        if ak.Name = AbstractKonceptName "Head abstract1" then
-            (ak, koncepts @ [ "dagen d" |> ValueKoncept.create |> Koncept.ValueKoncept]) |> Koncept.AbstractKoncept
+            (ak, koncepts @ [ "dagen d" |> ValueKoncept.create |> Koncept.ValueKoncept]) |> Koncept.AbstractKoncept |> Some
        else
-            koncept
+            None
        |> Ok
     mapAbstractKoncept f  
   
