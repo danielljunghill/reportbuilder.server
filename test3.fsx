@@ -225,28 +225,93 @@ module Koncept =
             | Koncept.Cube (hc,koncepts)->
                 Error "Handling of Cube not implemented"
         map' (Ok None) 
+    
+
+
+    let maybeAddKoncept' (child: Koncept option) (parent: ParentKoncept) =
+      match child with
+      | Some koncept ->
+         add koncept parent
+      | None -> 
+         let (ParentKoncept pk) = parent
+         Ok pk
+
+    let maybeAddKoncept child  (parent: Result<Koncept option, string>) =
+      let f = fun pk -> 
+         match pk with
+         | Some pk -> 
+             maybeAddKoncept' child (pk |> ParentKoncept) 
+             |> Result.map Some
+         | None -> 
+            match child with
+            | Some ck -> ck |> Some |> Ok
+            | None -> Ok None
+      Result.bind f parent
+
+   //  let maybeAddKoncept (child: Koncept Option) parent  =
+   //      match child with
+   //      | Some ck -> add ck parent
+   //      | None -> 
+   //          let (ParentKoncept pk) = parent
+   //          Ok pk
+
+   //  let maybeAddKoncept' parent child = 
+   //      let t = (maybeAddKoncept child >> Result.map Some)
+   //      Result.bind t parent
+   // let maybeAddKoncept (child: Koncept Option) (parent: Koncept option)  =
+   //      match child with
+   //      | Some ck -> 
+   //          add ck parent
+   //      | None -> 
+   //          let (ParentKoncept pk) = parent
+   //          Ok pk
+    //Option<Koncept> Option<Koncept>
+      //  match parent with
+      //  | None -> child |> Option.map Ok
+      //  | Some pk -> 
+      //       pk
+      //       |> tryAddKoncept child 
+            
+         //   match child with
+         //   | Some ck -> 
+         //       pk
+         //       |> add ck
+         //   | None ->  
+         //       let (ParentKoncept parent) = pk
+         //       parent |> Ok
+         //   |> Result.map Some
+
+   //  let fn2 child parent = //Option<Koncept> Option<Koncept>
+   //        match p with
+   //        | None -> acc |> Ok
+   //        | Some parentKoncept -> 
+   //            match acc with
+   //            | Some childKoncept -> 
+   //                parentKoncept
+   //                |> ParentKoncept 
+   //                |> add childKoncept
+   //            | None ->  parentKoncept |> Ok
+   //            |> Result.map Some
+
+   //  let tryAdd parent acc = //Result<Option<Koncept>,string> Option<Koncept>
+   //    Result.bind (fn2 acc) parent
 
     let map (f: Koncept -> Result<_,_>) koncept =
-        let rec map' parent koncept  =
+        let rec map' (parent: Result<Koncept option, string>) koncept  =
             let fmap koncept =
                 match koncept with
                 | Koncept.AbstractKoncept (ak, koncepts) ->
                     let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
                     let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
-                    let fn1 parent acc =
-                        let fn2 acc p =
-                            match p with
-                            | None -> acc |> Ok
-                            | Some parentKoncept -> 
-                                match acc with
-                                | Some childKoncept -> 
-                                    parentKoncept
-                                    |> ParentKoncept 
-                                    |> add childKoncept
-                                | None ->  parentKoncept |> Ok
-                                |> Result.map Some
-                        Result.bind (fn2 acc) parent
-                    accKoncept |> Result.bind (fn1 parent)
+                    accKoncept
+                    |> Result.bind (fun child ->  maybeAddKoncept child parent)
+                  //   accKoncept 
+                  //   |> Result.bind (fun child -> Result.bind (maybeAddKoncept child) (parent |> Result.map >> Option.map (fun p -> ParentKoncept))
+                    
+                    
+          
+                  //   |> (fun x ->  Result.bind maybeAddKoncept accKoncept
+                  //   accKoncept |> Result.bind (tryAdd parent)
                 | Koncept.ValueKoncept vk -> 
                     let fn parent =
                         match parent with
