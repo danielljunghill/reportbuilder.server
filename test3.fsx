@@ -305,30 +305,12 @@ module Koncept =
                     let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
                     accKoncept
                     |> Result.bind (fun child ->  maybeAddKoncept child parent)
-                  //   accKoncept 
-                  //   |> Result.bind (fun child -> Result.bind (maybeAddKoncept child) (parent |> Result.map >> Option.map (fun p -> ParentKoncept))
-                    
-                    
-          
-                  //   |> (fun x ->  Result.bind maybeAddKoncept accKoncept
-                  //   accKoncept |> Result.bind (tryAdd parent)
-                | Koncept.ValueKoncept vk -> 
-                    let fn parent =
-                        match parent with
-                        | Some p -> ValueKoncept.addToKoncept vk p
-                        | None ->  vk |> Koncept.ValueKoncept |> Ok
-                        |> Result.map Some
-                    parent |> Result.bind fn
-                | Koncept.Cube (hc,koncepts)->
-                    let newKoncept = f koncept
-                    let fn (parent: Koncept option) =
-                        match parent with
-                            | Some p -> 
-                                let f koncept = add koncept (ParentKoncept p) 
-                                Result.bind f newKoncept
-                            | None -> newKoncept 
-                        |> Result.map Some
-                    Result.bind fn parent
+                | Koncept.ValueKoncept _ -> 
+                    maybeAddKoncept (koncept |> Some) parent
+                | Koncept.Cube _ ->
+                    f koncept 
+                    |> Result.map  Some
+                    |> Result.bind (fun child ->  maybeAddKoncept child parent)
             Result.bind fmap koncept
         map' (Ok None) koncept
         |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
