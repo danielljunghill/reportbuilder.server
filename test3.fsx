@@ -224,8 +224,59 @@ module Koncept =
 
             | Koncept.Cube (hc,koncepts)->
                 Error "Handling of Cube not implemented"
-        map' (Ok None) 
+        map' (Ok None) koncept
     
+    let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
+        let fn2 (acc: Koncept option) (p: Koncept option)  =
+            match p with
+            | None -> acc |> Ok
+            | Some parentKoncept -> 
+                match acc with
+                | Some childKoncept -> 
+                    parentKoncept
+                    |> ParentKoncept 
+                    |> add childKoncept
+                | None ->  parentKoncept |> Ok
+                |> Result.map Some
+        Result.bind (fn2 acc) parent
+    
+   
+    let map (f: Koncept -> Result<Koncept option,String>) koncept =
+        let rec map' parent koncept  =
+            let fmap (koncept: Koncept option)=
+               match koncept with
+               | Some k ->
+                   match k with
+                   | Koncept.AbstractKoncept (ak, koncepts) ->
+                       let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
+                       let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
+
+                       accKoncept |> Result.bind (fn1 parent)
+                   | Koncept.ValueKoncept (_) -> 
+                     let newKoncept = f k
+                     Result.bind (fn1 parent) newKoncept
+                     //   let fn parent =
+                     //       match parent with
+                     //       | Some p -> ValueKoncept.addToKoncept vk p
+                     //       | None ->  vk |> Koncept.ValueKoncept |> Ok
+                     //       |> Result.map Some
+                     //   parent |> Result.bind fn
+                   | Koncept.Cube (_)->
+                       let newKoncept = f k
+                     //   let fn (parent: Koncept option) =
+                     //       match parent with
+                     //           | Some p -> 
+                     //               let f koncept = add koncept (ParentKoncept p) |> Result.map Some
+                     //               Result.bind f newKoncept
+                     //           | None -> newKoncept 
+                          
+                       Result.bind (fn1 parent) newKoncept
+               | None -> parent
+
+            Result.bind fmap koncept
+        map' (Ok None) koncept
+        |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
+        |> Result.join
 
 
     let maybeAddKoncept' (child: Koncept option) (parent: ParentKoncept) =
@@ -248,76 +299,49 @@ module Koncept =
             | None -> Ok None
       Result.bind f parent
 
-   //  let maybeAddKoncept (child: Koncept Option) parent  =
-   //      match child with
-   //      | Some ck -> add ck parent
-   //      | None -> 
-   //          let (ParentKoncept pk) = parent
-   //          Ok pk
+ 
+   //  let map (f: Koncept  -> Result<Koncept option,_>) (konceptA: Koncept) =
+   //      let rec innerMap (parentB: Result<Koncept option, string>) konceptB  =
+   //          let addKonceptToParent koncept parent =
+   //              match koncept with
+   //              | Koncept.AbstractKoncept (ak, koncepts) ->
+   //                 let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
+   //                 let accKoncept = koncepts |> List.map f |> List.fold innerMap newKoncept 
+   //                 let fn1 (parent: Result<Koncept option, string>) (acc:Koncept option) =
+   //                     let fn2 (acc: Koncept option) (p: Koncept option)  =
+   //                         match p with
+   //                         | None -> acc |> Ok
+   //                         | Some parentKoncept -> 
+   //                             match acc with
+   //                             | Some childKoncept -> 
+   //                                 parentKoncept
+   //                                 |> ParentKoncept 
+   //                                 |> add childKoncept
+   //                             | None ->  parentKoncept |> Ok
+   //                             |> Result.map Some
+   //                     Result.bind (fn2 acc) parent
+   //                 accKoncept |> Result.bind (fn1 parent)
 
-   //  let maybeAddKoncept' parent child = 
-   //      let t = (maybeAddKoncept child >> Result.map Some)
-   //      Result.bind t parent
-   // let maybeAddKoncept (child: Koncept Option) (parent: Koncept option)  =
-   //      match child with
-   //      | Some ck -> 
-   //          add ck parent
-   //      | None -> 
-   //          let (ParentKoncept pk) = parent
-   //          Ok pk
-    //Option<Koncept> Option<Koncept>
-      //  match parent with
-      //  | None -> child |> Option.map Ok
-      //  | Some pk -> 
-      //       pk
-      //       |> tryAddKoncept child 
+   //              | Koncept.ValueKoncept vk -> 
+   //                 let fn (parent: Koncept option) =
+   //                     match parent with
+   //                     | Some p -> ValueKoncept.addToKoncept vk p
+   //                     | None ->  vk |> Koncept.ValueKoncept |> Ok
+   //                     |> Result.map Some
+   //                 parent |> Result.bind fn
+
+   //              | Koncept.Cube _ ->
+
+   //                 f koncept 
+   //                 |> Result.bind (fun child ->  maybeAddKoncept child parent)
             
-         //   match child with
-         //   | Some ck -> 
-         //       pk
-         //       |> add ck
-         //   | None ->  
-         //       let (ParentKoncept parent) = pk
-         //       parent |> Ok
-         //   |> Result.map Some
-
-   //  let fn2 child parent = //Option<Koncept> Option<Koncept>
-   //        match p with
-   //        | None -> acc |> Ok
-   //        | Some parentKoncept -> 
-   //            match acc with
-   //            | Some childKoncept -> 
-   //                parentKoncept
-   //                |> ParentKoncept 
-   //                |> add childKoncept
-   //            | None ->  parentKoncept |> Ok
-   //            |> Result.map Some
-
-   //  let tryAdd parent acc = //Result<Option<Koncept>,string> Option<Koncept>
-   //    Result.bind (fn2 acc) parent
-
-    let map (f: Koncept -> Result<_,_>) koncept =
-        let rec map' (parent: Result<Koncept option, string>) koncept  =
-            let fmap koncept =
-                match koncept with
-                | Koncept.AbstractKoncept (ak, koncepts) ->
-                    let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> Some |> Ok
-                    let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept 
-                    accKoncept
-                    |> Result.bind (fun child ->  maybeAddKoncept child parent)
-                | Koncept.ValueKoncept _ -> 
-                    maybeAddKoncept (koncept |> Some) parent
-                | Koncept.Cube _ ->
-                    f koncept 
-                    |> Result.map  Some
-                    |> Result.bind (fun child ->  maybeAddKoncept child parent)
-            Result.bind fmap koncept
-        map' (Ok None) koncept
-        |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
-        |> Result.join
+   //          Result.bind addKonceptToParent koncept
+   //      innerMap (Ok None) konceptA
+   //      |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
+   //      |> Result.join
 
 
-     
+
 //  open Koncept
 //  open AbstractKoncept
 //  open ValueKoncept
