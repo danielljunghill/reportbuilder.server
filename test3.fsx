@@ -256,20 +256,20 @@ module Koncept =
     let andThenMaybeAdd (parent: Result<ParentKoncept option, string>) (koncept:Koncept option) =
         Result.bind (maybeAdd koncept) parent
     
-    let rt (k:Result<Koncept option, string>) =
+    let mapToParent (k:Result<Koncept option, string>) =
          k |> Result.map (fun r -> r |> Option.map ParentKoncept)
+
     let parentAsKoncept (parent: Result<ParentKoncept option, string>) =
         parent |> Result.map (fun r -> r |> Option.map (fun (ParentKoncept k) -> k))
 
-    let map (f: Koncept -> Result<Koncept option,String>) koncept =
-        let rec map' (parent: Result<ParentKoncept option, string>) koncept  =
-            let fmap (koncept: Koncept option)=
+    let rec recursiveMap f p k  =
+            let fmap parent (koncept: Koncept option)=
                match koncept with
                | Some k ->
                    match k with
                    | Koncept.AbstractKoncept (ak, koncepts) ->
                        let newKoncept = (ak, []) |> Koncept.AbstractKoncept |> ParentKoncept |> Some |> Ok
-                       let accKoncept = koncepts |> List.map f |> List.fold map' newKoncept |> parentAsKoncept
+                       let accKoncept = koncepts |> List.map f |> List.fold (recursiveMap f) newKoncept |> parentAsKoncept
                        accKoncept |> Result.bind (andThenMaybeAdd parent)
                        
                    | Koncept.ValueKoncept (_) -> 
@@ -278,35 +278,20 @@ module Koncept =
                    | Koncept.Cube (_)->
                        let newKoncept = f k
                        Result.bind (andThenMaybeAdd parent) newKoncept
-                   |> rt
+                   |> mapToParent
                | None -> parent
 
-            Result.bind fmap koncept
-        map' (Ok None) (koncept |> Result.map Some)
+            Result.bind (fmap p) k
+
+    let map f m =
+      
+        recursiveMap f (Ok None) (m |> Result.map Some)
         |> parentAsKoncept
         |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
         |> Result.join
 
 
-    let maybeAddKoncept' (child: Koncept option) (parent: ParentKoncept) =
-      match child with
-      | Some koncept ->
-         add koncept parent
-      | None -> 
-         let (ParentKoncept pk) = parent
-         Ok pk
 
-    let maybeAddKoncept child  (parent: Result<Koncept option, string>) =
-      let f = fun pk -> 
-         match pk with
-         | Some pk -> 
-             maybeAddKoncept' child (pk |> ParentKoncept) 
-             |> Result.map Some
-         | None -> 
-            match child with
-            | Some ck -> ck |> Some |> Ok
-            | None -> Ok None
-      Result.bind f parent
 
 
 
@@ -344,36 +329,65 @@ let mapKoncept (koncept: Koncept) =
 let added2 = Koncept.map mapKoncept added
 let added3 = Koncept.map mapKoncept added2
 
-let optionKoncept (koncept: Koncept) (konceptAdd: Koncept option) =
-    match konceptAdd with
+
+let optionDefault defaultValue b=
+    match b with
     | Some k -> k
-    | None -> koncept
+    | None -> defaultValue
     |> Ok
 
-let mapCube (f:HyperCube -> DimensionalKoncept List-> Result<Koncept option,_>) (koncept: Koncept) =
+let fMap2 f a b koncept =
+      f a b
+      |> Result.bind (optionDefault koncept)
+      |> Result.map Some
+       
+let fMap f a koncept =
+      f a 
+      |> Result.bind (optionDefault koncept)
+      |> Result.map Some
+
+
+type MapAction = 
+   | Delete 
+   | Map of Koncept
+   | Ignore
+   
+let mCube (f:HyperCube -> DimensionalKoncept List-> Result<Koncept option,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.Cube (hc,koncepts) ->
         f hc koncepts
-        |> Result.bind (optionKoncept koncept)
-    | _-> koncept |> Ok 
-    
+      //   |> Result.bind (optionKoncept koncept)
+    | _-> koncept |> Some |> Ok 
 
-let mapAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<Koncept option,_>) (koncept: Koncept) =
+
+let mAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<Koncept option,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.AbstractKoncept (ak,koncepts) ->
         f ak koncepts
-        |> Result.bind (optionKoncept koncept) 
-    | _-> koncept |> Ok
+        // |> Result.bind (optionKoncept koncept) 
+    | _-> koncept |> Some |> Ok 
  
 
-let mapValueKoncept (f:ValueKoncept -> Result<Koncept option,_>) (koncept: Koncept) =
+let mValueKoncept (f:ValueKoncept -> Result<Koncept option,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.ValueKoncept vk ->
         f vk
-        |> Result.bind (optionKoncept koncept) 
-    | _-> koncept |> Ok
+      //   |> Result.bind (optionKoncept koncept) 
+    | _-> koncept |> Some |> Ok 
 
 
+let mapAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<Koncept option,_>) (koncept: Koncept)  =
+   mAbstractKoncept (fun a b -> (fMap2 f a b koncept)) koncept
+
+let mapCube (f:HyperCube -> DimensionalKoncept List -> Result<Koncept option,_>) (koncept: Koncept)  =
+   mCube (fun a b -> (fMap2 f a b koncept)) koncept
+
+let mapValue (f:ValueKoncept -> Result<Koncept option,_>) (koncept: Koncept)  =
+   mValueKoncept (fun a  -> (fMap f a koncept)) koncept
+
+let deleteValue (f:ValueKoncept -> Result<Koncept option,_>) =
+   mValueKoncept f
+   
 let addCube  =
     let hyperDimension = 
         ["kv1"; "kv2"; "kv3";"kv4"]
@@ -396,6 +410,12 @@ let addCube  =
     >> Result.map Some
     >> Result.mapError (fun err -> sprintf "%A" err)
     // |> Result.mapError (fun err -> sprintf "%A" err)
+let deleteCube (hk:HyperCube) koncepts = 
+   if hk.Name = HyperCubeName "Kvartal och annat" then
+      Ok None
+   else
+       Cube (hk,koncepts) |> Some |> Ok
+
 
 
 let added4 = Koncept.map addCube added3
@@ -425,5 +445,6 @@ let addValue  =
        |> Ok
     mapAbstractKoncept f  
     >> Result.map Some
-
-let added6 = Koncept.map addValue  added5        
+let t = mapCube deleteCube
+let added6 = Koncept.map addValue  added5    
+let added7 = Koncept.map t  added6  
