@@ -49,15 +49,6 @@ type HyperCube =
         Id: HyperCubeId
     }
 
-type DimensionalAbstractKonceptId = DimensionalAbstractKonceptId of Guid
-type DimensionalAbstractKonceptName = DimensionalAbstractKonceptName of string
-
-// type DimensionalAbstractKoncept =
-//     {
-//         Id : DimensionalAbstractKonceptId
-//         Name: DimensionalAbstractKonceptName
-//     }
-
 type AbstractKonceptName = AbstractKonceptName of string
 type AbstractKonceptId = AbstractKonceptId of Guid
 type AbstractKoncept =
@@ -266,15 +257,6 @@ module Koncept =
         |> Result.map (fun v -> match v with | Some vi -> Ok vi | None -> Error "Empty result from map")
         |> Result.join
 
-
-
-
-
-
-//  open Koncept
-//  open AbstractKoncept
-//  open ValueKoncept
-
 let a1 = 
     "Head abstract1"  
     |> Koncept.createAbstract 
@@ -286,10 +268,6 @@ let added =
     a1
     |> Result.map Koncept.ParentKoncept 
     |> Result.bind (Koncept.add v1)
-
-// let mapped = 
-//     added 
-//     |> Result.bind (Koncept.map )
 
 let mapKoncept (koncept: Koncept) =
     match koncept with
@@ -305,11 +283,9 @@ let mapKoncept (koncept: Koncept) =
 let added2 = Koncept.map mapKoncept added
 let added3 = Koncept.map mapKoncept added2
 
-
 let rod defaultValue =
    Option.defaultValue defaultValue >> Ok
    
-
 type MapAction<'a> = 
    | Delete 
    | NewValue of 'a
@@ -329,9 +305,7 @@ let mapCube (f:HyperCube -> DimensionalKoncept List-> Result<MapKonceptAction,_>
     | Koncept.Cube (hc,koncepts) ->
         f hc koncepts 
         |> Result.map (MapKonceptAction.asKonceptOption koncept)
-      //   |> Result.bind (optionKoncept koncept)
     | _-> koncept |> Some |> Ok 
-
 
 let mapAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<MapKonceptAction,_>) (koncept: Koncept) =
     match koncept with
@@ -340,16 +314,13 @@ let mapAbstractKoncept (f:AbstractKoncept -> Koncept List -> Result<MapKonceptAc
         |> Result.map (MapKonceptAction.asKonceptOption koncept)
     | _-> koncept |> Some |> Ok 
  
-
 let mapValueKoncept (f:ValueKoncept -> Result<MapKonceptAction,_>) (koncept: Koncept) =
     match koncept with
     | Koncept.ValueKoncept vk ->
         f vk
         |> Result.map (MapKonceptAction.asKonceptOption koncept)
-      //   |> Result.bind (optionKoncept koncept) 
     | _-> koncept |> Some |> Ok 
-
-   
+ 
 let addCube  =
     let hyperDimension = 
         ["kv1"; "kv2"; "kv3";"kv4"]
@@ -367,10 +338,8 @@ let addCube  =
             MapKonceptAction.Ignore
         |> Ok
         
-
     mapAbstractKoncept f 
     >> Result.mapError (fun err -> sprintf "%A" err)
-    // |> Result.mapError (fun err -> sprintf "%A" err)
 
 let deleteCube (hk:HyperCube) koncepts = 
    if hk.Name = HyperCubeName "Kvartal och annat" then
@@ -378,25 +347,20 @@ let deleteCube (hk:HyperCube) koncepts =
    else
       Ok MapKonceptAction.Ignore
 
-
-
 let added4 = Koncept.map addCube added3
 
 let addDimensionalKoncept  =
-    let dimKoncepts = [ DimensionalKoncept.create "Intäkter" ; DimensionalKoncept.create "Försäljning cyklar"; DimensionalKoncept.create "Bidrag" ]
+    let dimKoncepts = [ DimensionalKoncept.createValue "Intäkter" ; DimensionalKoncept.createValue "Försäljning cyklar"; DimensionalKoncept.createValue "Bidrag" ]
     let f (hc: HyperCube) dimension =
         if hc.Name = HyperCubeName "Kvartal och annat" then
-            (hc,dimKoncepts) |> Koncept.Cube |> MapKonceptAction.NewValue
+            (hc,dimension @ dimKoncepts) |> Koncept.Cube |> MapKonceptAction.NewValue
         else
             MapKonceptAction.Ignore 
         |> Ok
     mapCube f    
     >> Result.mapError (fun err -> sprintf "%A" err)
 
-
 let added5 = Koncept.map addDimensionalKoncept added4
-//add
-
 
 let addValue  =
     let f (ak:AbstractKoncept) koncepts =

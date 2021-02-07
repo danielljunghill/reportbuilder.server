@@ -62,7 +62,11 @@ type DimensionalKoncept =
     | Cube of HyperCube * DimensionalKoncept List
     | AbstractKoncept of AbstractKoncept * Koncept List
     | ValueKoncept of ValueKoncept
-
+    
+type Page =
+    {
+        Koncepts: Koncept List
+    }
 module ValueKoncept =
  
 
