@@ -131,25 +131,29 @@ module HeaderItem  =
 
 
 module Header =
-   let rec create (members: string list list) (headers:Header List) =
-      match members with
-      | [ head ]-> 
-         let newHeaders = 
-            head 
-            |> List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
- 
-         newHeaders
+   let create (members: string list list) =
+      let rec create'  (headers:Header List) (members: string list list) =
+         match members with
+         | [ head ]-> 
+            let newHeaders = 
+               head 
+               |> List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
+    
+            newHeaders
 
-      | head :: tail -> 
-         let state = 
-            head 
-            |> 
-            List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
-         
-         create tail state
-      | [] -> []
+         | head :: tail -> 
+            let state = 
+               head 
+               |> 
+               List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
+            
+            create' state tail 
+         | [] -> []
+      members 
+      |> List.rev 
+      |> create' []
 
-Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]] []
+Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]] 
        
          // let state = 
          //    head 
@@ -215,7 +219,7 @@ module Headers =
                      | [] ->  
                            yield (item, [])
                      | _ ->
-                         for h in headers do yield! second item ([item.Member]) h
+                         for h in headers do yield! second item ([]) h
                         //  for h in rest do yield! second item ([]) h
                      
                   }
@@ -226,17 +230,49 @@ module Headers =
                            printfn "members: %A" (members @ [item.Member])
                            yield (colItem, members @ [item.Member])
                      | _->
-                        for h in headers do yield! second item ([item.Member]) h
+                        for h in headers do yield! second colItem ([item.Member]) h
                  }
             first header
       }
       |> Seq.concat
       |> Seq.toList
 
-let x = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]; ["bilar" ; "båtar"]] []
-let x' = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] []
-let x1 = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] []   
-let t =  List.map (Headers.columns) x1
+   let columns3 header =
+
+            let rec first (Header (item,headers)) =
+                     match headers with
+                     | [] ->  
+                            [(item, [item.Member])]
+                     | _ ->
+                        let rec loop headers =
+                           match headers with
+                           | [] -> []
+                           | head :: tail -> 
+                              (second ([item.Member]) head) @  loop tail 
+                        loop headers
+            and second  members (Header (item,headers)) =
+                    match headers with
+                     | [] ->  
+                           printfn "members: %A" (members @ [item.Member])
+                           [(item, members)]
+                     | _->
+                        let rec loop headers =
+                           match headers with
+                           | [] -> []
+                           | head :: tail -> 
+                              (second  (members @ [item.Member]) head)  @  loop tail
+                        loop headers
+            first header
+      
+
+
+
+
+let x = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]; ["bilar" ; "båtar"]] 
+let x' = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] 
+let x1 = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"] ; ["Bilar"; "Cyklar"]]  
+printfn "Starta skapa kolumner" 
+let t =  List.map (Headers.columns3) x1
 //let v = t [] |> Seq.concat
 
 //  let  =
