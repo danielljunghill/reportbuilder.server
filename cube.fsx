@@ -188,7 +188,7 @@ module Headers =
                      | [] ->  
                            yield (item, [])
                      | Header (im,hrs) :: rest ->
-                         for h in hrs do yield! second item ([]) h
+                         for h in hrs do yield! second item ([im.Member]) h
                          for h in rest do yield! second item ([]) h
                      
                   }
@@ -200,17 +200,44 @@ module Headers =
                            yield (colItem, members @ [item.Member])
                      | Header (im,hrs) :: rest ->
                          for h in hrs do yield! second colItem (members @ [ im.Member ]) h
-                         for h in rest do yield! second colItem (members @ [ im.Member ]) h
+                         for h in rest do yield! second colItem (members) h
                  }
             first header
       }
+      |> Seq.concat
+      |> Seq.toList
    
+   let columns2 header =
+      seq {
+            let rec first (Header (item,headers)) =
+               seq {
+                     match headers with
+                     | [] ->  
+                           yield (item, [])
+                     | _ ->
+                         for h in headers do yield! second item ([item.Member]) h
+                        //  for h in rest do yield! second item ([]) h
+                     
+                  }
+            and second colItem  members (Header (item,headers)) =
+               seq {
+                    match headers with
+                     | [] ->  
+                           printfn "members: %A" (members @ [item.Member])
+                           yield (colItem, members @ [item.Member])
+                     | _->
+                        for h in headers do yield! second item ([item.Member]) h
+                 }
+            first header
+      }
+      |> Seq.concat
+      |> Seq.toList
 
-
-let x = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]] []
-   
-let t = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]] >> List.map (Headers.columns) 
-let v = t [] |> Seq.toList
+let x = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]; ["bilar" ; "båtar"]] []
+let x' = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] []
+let x1 = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] []   
+let t =  List.map (Headers.columns) x1
+//let v = t [] |> Seq.concat
 
 //  let  =
 
