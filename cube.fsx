@@ -32,28 +32,73 @@ type DomainName = | DomainName of String
 
 let domainNameToString (DomainName name) = name
 
+type Factor = | Factor of int
 type Member =
    {
       Id: Guid
       Name: String
-      Factor: int
+      Factor: Factor
    }
+
+module Member =
+   let create factor name  =
+      { Id = Guid.NewGuid(); Name = name ; Factor = factor}
+
+   let fromList (f: 'a -> Member)  m = 
+      m |> List.map f
+
 type DomainMember = | DomainMember of Member
+module DomainMember =
+   let create factor name  = 
+      Member.create factor name 
+     |> DomainMember
 
-
-let domainMemberToString (DomainMember name) = name
+let domainMemberToString (DomainMember m) = m
 type Domain =
     {
-            Name: DomainName
-            Members:  DomainMember List
+      Name: DomainName
+      Members:  DomainMember List
     }
 
 type DefaultMember = | DefaultMember of Member  
-
+module DefaultMember =
+   let create factor name  = 
+      Member.create factor name 
+     |> DefaultMember
 
 type Dimension =
    | DimensionWithDefault of (DefaultMember*Domain)
    | DimensionWithoutDefault of Domain
+
+module Dimension =
+   let members dimension =
+      match dimension with
+      | DimensionWithDefault (_,d) -> d.Members
+      | DimensionWithoutDefault (d) -> d.Members
+
+   let defaultMember dimension =
+       match dimension with
+         | DimensionWithDefault (d,_) ->  [ d ]
+         | DimensionWithoutDefault (_) -> []
+
+
+   let fromListWithDefault f d m =
+          m 
+          |> Member.fromList f 
+          |> List.map DomainMember
+          |> fun members ->  DimensionWithDefault ((Member.create (Factor 1) (sprintf "total:%A" d) |> DefaultMember),{ Name = d ; Members = members })
+  
+   let fromListWithoutDefault f d m =
+          m 
+          |> Member.fromList f 
+          |> List.map DomainMember
+          |> fun members ->  DimensionWithoutDefault ({ Name = d ; Members = members })
+
+   let fromStringListWithDefault =
+         fromListWithDefault (Member.create (Factor 1))
+
+   let fromStringListWithoutDefault =
+         fromListWithoutDefault (Member.create (Factor 1))
 
 type HyperDimension =
      | Opened of Dimension
@@ -83,9 +128,11 @@ type Koncept =
 
 
 type ParentColumn = | ParentColumn of int * DomainMember List
+
 type Axis =
    | DomainsOnly of Domain list
    | DomainsThenDimensionas of Domain list * DimensionalKoncept list * Domain list
+
 module ParentColumn =
    let toValue (ParentColumn (col,dims)) = col,dims
    let addColumn (ParentColumn (col,dims)) = ParentColumn (col + 1,dims)
@@ -104,71 +151,145 @@ module ParentColumn =
 let xAxis (domainshead: Domain list) (dimensions: DimensionalKoncept list) (domainsrest: Domain list) =  NotImplementedException() |> raise
 
 
+type XSpan = XSpan of int
+type YSpan = YSpan of int
+type XStart = XStart of int
+type YStart = YStart of int
+
 type HeaderItem = {
-   XSpan: int
-   YSpan: int
-   XStart: int
-   YStart: int
+   XSpan: XSpan
+   YSpan: YSpan
+   XStart: XStart
+   YStart: YStart
    Member : Member 
 }
 
 type Header = Header of (HeaderItem * Header List)
 
-module Member =
-   let create name : Member =
-      { Factor = 1; Id = Guid.NewGuid() ; Name = name}
-
 module HeaderItem  =
-   let create =
-      Member.create 
+   let create  =
+      (Member.create (Factor 1)) 
       >> (fun m -> 
                {  
-                  XSpan = 1
-                  YSpan = 1
-                  XStart = 1
-                  YStart = 1
+                  XSpan = XSpan 1
+                  YSpan = YSpan 1
+                  XStart = XStart 1
+                  YStart = YStart 1
                   Member = m})
 
+   let setY (yspan: YSpan) hi  =
+      { hi with YSpan = yspan }
+     
+   let fromDimensionOld headers yspan (dimension: Dimension)  =
+      let memberHeaders = 
+         Dimension.members dimension
+         |> List.map (fun (DomainMember m) -> Header (create m.Name,headers))
+      let defaultMemberHeaders =
+         Dimension.defaultMember dimension
+         |> List.map (fun (DefaultMember md) -> Header (md.Name |> create |> setY yspan,[]))
+      memberHeaders,  defaultMemberHeaders 
+
+
+   let fromDimension (dimension: Dimension)  =
+      let memberHeaders = 
+         Dimension.members dimension
+         |> List.map (fun (DomainMember m) -> Header (create m.Name,[]))
+      let defaultMemberHeaders =
+         Dimension.defaultMember dimension
+         |> List.map (fun (DefaultMember md) -> Header (md.Name |> create |> setY (YSpan 1),[]))
+      memberHeaders , defaultMemberHeaders 
 
 module Header =
-   let create (members: string list list) =
-      let rec create'  (headers:Header List) (members: string list list) =
-         match members with
-         | [ head ]-> 
-            let newHeaders = 
-               head 
-               |> List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
+
+   // let addDimension (header: Header option) (dimension: Dimension)  =
+   //    let (Header (p,items)) = header
+   //    let childHeaders = 
+   //          Dimension.members dimension
+   //          |> List.map (fun (DomainMember m) -> Header (HeaderItem.create m.Name,[]))
+   //    //Här ska det submembes läggas till
+          
+   //    let defaultHeader =
+   //       Dimension.defaultMember dimension
+   //       |> List.map (fun (DefaultMember md) -> Header (md.Name |> HeaderItem.create |> HeaderItem.setY (YSpan 1) ,[]))
+   //    Header (p,childHeaders @ defaultHeader)
+
+
+   let create (dimensions: Dimension list) =
+      let rec create' (dimensions: Dimension list)  (parent: Header option)=
+            match dimensions with
+            | [ dimension ] -> 
+              
+                  let (state,d) = HeaderItem.fromDimension dimension 
+                  match parent with
+                  | Some p -> 
+                     let (Header (item,headers)) = p
+                     [ Header (item, headers @ state @ d) ]
+                  | None -> state @ d
+            | head :: tail -> 
+               let state,d = HeaderItem.fromDimension head 
+               let newState = 
+                  state 
+                  |> List.collect (Some >> (create' tail)) 
+               //add to parent
+               match parent with
+               | Some p -> 
+                     let (Header (item,headers)) = p
+                     [ Header (item, headers @ newState @ d) ]
+               | None -> newState @ d
+
+            | [] -> ArgumentException() |> raise
+      create' dimensions None
+     // |> List.rev 
+
+   // let create (headers: string list list) =
+   //    let rec create'  (headers:Header List) (members: string list list) =
+   //       match members with
+   //       | [ head ]-> 
+   //          let newHeaders = 
+   //             head 
+   //             |> List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
     
-            newHeaders
+   //          newHeaders
 
-         | head :: tail -> 
-            let state = 
-               head 
-               |> 
-               List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
+   //       | head :: tail -> 
+   //          let state = 
+   //             head 
+   //             |> 
+   //             List.map (HeaderItem.create >> (fun item -> Header (item,headers)))
             
-            create' state tail 
-         | [] -> []
-      members 
-      |> List.rev 
-      |> create' []
+   //          create' state tail 
+   //       | [] -> []
+   //    members 
+   //    |> List.rev 
+   //    |> create' []
+   // let create1 (dimensions: Dimension list) =
+   //    let rec fromDimension'  (headers:Header List) (dimensions: Dimension list) =
+   //       match dimensions with
+   //       | [ dimension ]-> 
+   //          let headers, total =  dimension |> HeaderItem.fromDimension headers (YSpan 1) 
+   //          headers @ total
+   //       | dimension :: tail -> 
+   //          //headers - total
+   //          let headers, total = dimension |> HeaderItem.fromDimension headers (YSpan (tail.Length + 1))
+            
+   //          printfn "Headers: %A" headers 
+   //          printfn "Total: %A" total
+   //          (fromDimension' headers tail) @ total
+   //          //
+   //       | [] -> []
+   //    dimensions 
+   //   // |> List.rev 
+   //    |> fromDimension' []
 
-Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]] 
-       
-         // let state = 
-         //    head 
-         //    |> List.map HeaderItem.create 
-         //    |> List.map (fun item -> HeaderItem (item,headers))
-         // state 
-         // List.fold 
 
-  
+// let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2"; "kv3"; "kv4"] 
+// let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"; "Danmark" ] 
+// let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
 
-// type Headers =
-//    {
-//       Headers: Header List
-//    }
-
+let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1" ] 
+let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"] 
+let dim3 = Dimension.fromStringListWithoutDefault (DomainName "Produkt") [  "Personbil" ] 
+let headers = Header.create [ dim2 ; dim1  ]
 
 module Headers =
    // let expand (Header (item, headers)) =
@@ -184,32 +305,7 @@ module Headers =
    //             second 
                
    //       | [] -> ( item, [item.Member] )
-   let columns header =
-      seq {
-            let rec first (Header (item,headers)) =
-               seq {
-                     match headers with
-                     | [] ->  
-                           yield (item, [])
-                     | Header (im,hrs) :: rest ->
-                         for h in hrs do yield! second item ([im.Member]) h
-                         for h in rest do yield! second item ([]) h
-                     
-                  }
-            and second colItem  members (Header (item,headers)) =
-               seq {
-                    match headers with
-                     | [] ->  
-                           printfn "members: %A" (members @ [item.Member])
-                           yield (colItem, members @ [item.Member])
-                     | Header (im,hrs) :: rest ->
-                         for h in hrs do yield! second colItem (members @ [ im.Member ]) h
-                         for h in rest do yield! second colItem (members) h
-                 }
-            first header
-      }
-      |> Seq.concat
-      |> Seq.toList
+
    
    let columns2 header =
       seq {
@@ -237,8 +333,7 @@ module Headers =
       |> Seq.concat
       |> Seq.toList
 
-   let columns3 header =
-
+   let columns header =
             let rec first (Header (item,headers)) =
                      match headers with
                      | [] ->  
@@ -268,12 +363,11 @@ module Headers =
 
 
 
-let x = Header.create [ [ "kv1"; "kv2"; "kv3";"kv4"]; [ "Sverige"; "Norge"; "Danmark"]; ["bilar" ; "båtar"]] 
-let x' = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"]] 
-let x1 = Header.create [ [ "kv1"; "kv2"]; [ "Sverige"] ; ["Bilar"; "Cyklar"]]  
 printfn "Starta skapa kolumner" 
-let t =  List.map (Headers.columns3) x1
-//let v = t [] |> Seq.concat
+
+let t =  
+   List.map (Headers.columns) headers 
+   |> List.concat
 
 //  let  =
 
