@@ -28,6 +28,11 @@ type  AbstractKoncept =
             Selected: Boolean
     }
 
+let createAbstract name : AbstractKoncept=
+   { Name = name ; Id = Guid.NewGuid() |> AbstractKonceptId; Selected = false}
+let createValue name : ValueKoncept =
+   { Name = name ; Id = Guid.NewGuid() |> ValueKonceptId; Selected = false}
+
 type DomainName = | DomainName of String
 
 let domainNameToString (DomainName name) = name
@@ -235,11 +240,14 @@ module Header =
 let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
 let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
 let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
+let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
+
 
 
 
 module Headers =
 
+   // let addDimensions headers dim1 dim2 =
 
    
    let columns2 header =
@@ -268,31 +276,31 @@ module Headers =
       |> Seq.concat
       |> Seq.toList
 
-   let columns header =
-            let rec first (Header (item,headers)) =
-                     match headers with
-                     | [] ->  
-                            [(item,[])]
-                     | _ ->
-                        let rec loop headers =
-                           match headers with
-                           | [] -> []
-                           | head :: tail -> 
-                              (second item ([]) head) @  loop tail 
-                        loop headers
-            and second  colItem members (Header (item,headers)) =
-                    match headers with
-                     | [] ->  
-                           printfn "members: %A" (members @ [item.Member])
-                           [(colItem, members @ [item.Member])]
-                     | _->
-                        let rec loop headers =
-                           match headers with
-                           | [] -> []
-                           | head :: tail -> 
-                              (second colItem ([item.Member]) head)  @  loop tail
-                        loop headers
-            first header
+   // let getColumns header =
+   //       let rec first (Header (item,headers)) =
+   //                match headers with
+   //                | [] ->  
+   //                       [(item,[])]
+   //                | _ ->
+   //                   let rec loop headers =
+   //                      match headers with
+   //                      | [] -> []
+   //                      | head :: tail -> 
+   //                         (second item ([]) head) @  loop tail 
+   //                   loop headers
+   //       and second colItem members (Header (item,headers)) =
+   //               match headers with
+   //                | [] ->  
+   //                      printfn "members: %A" (members @ [item.Member])
+   //                      [(colItem, members @ [item.Member])]
+   //                | _->
+   //                   let rec loop headers =
+   //                      match headers with
+   //                      | [] -> []
+   //                      | head :: tail -> 
+   //                         (second colItem ([item.Member]) head)  @  loop tail
+   //                   loop headers
+   //       first header
 
    // let columns h =
    //    let rec vierdo (parent: Header option) header  =
@@ -354,19 +362,47 @@ let rec vierdo header  =
             
              
       doit headers
-let headers = Header.create [ dim2 ; dim1 ; dim3  ]
+let headers = Header.create [ dim2 ; dim1 ; dim3; dim4  ]
 let xy =    headers |> List.collect vierdo 
 
 printfn "Starta skapa kolumner" 
 
-let t =  
-   List.collect (Headers.columns) headers 
+// let t =  
+//    List.collect (Headers.c) headers 
 
 
-//  let  =
+let dim11 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
+let dim12 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
+let dim13 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
+let dim14 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
+
+type AccumulatedDimensions = | AccumulatedDimensions of Header List List
 
 
-      
+let rec addDimensionsToHeaders (AccumulatedDimensions accHeaders) (dimension : Dimension) =
+  let mapHeaders headers =
+      headers |> List.map (fun header -> [ header ])
+  let headers, totals = HeaderItem.fromDimension dimension
+  match accHeaders with
+  | [] -> mapHeaders headers
+  | _ -> headers |> List.collect (fun header -> accHeaders |> List.map (fun accHeader ->  [ header ] @ accHeader )) 
+  @ mapHeaders totals 
+  |> AccumulatedDimensions
+
+let getHeaders dimensions =
+   dimensions |> List.fold addDimensionsToHeaders (AccumulatedDimensions [])
+
+getHeaders [ dim1 ; dim2  ]
+
+
+let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
+   match dimensionalKoncept with
+   | DimensionalAbstract (ak, koncepts) -> [Header (ak.Name |> abstractKonceptNameToString |> HeaderItem.create  ,[])] @ (koncepts |> List.collect konceptHeader)
+   | DimensionalValue vk -> [Header (vk.Name |> valueKonceptNameToString |> HeaderItem.create  ,[])] 
+
+let testKoncept = 
+    DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue  ]); ])
+[testKoncept; testKoncept] |> List.collect konceptHeader       
    // let rec columns (members: Member list) (headers: Header list) =
    //    match header with
    //    | header :: [] ->
