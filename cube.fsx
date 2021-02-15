@@ -188,7 +188,7 @@ module Area =
       | Horizontal ->
          { VerticalLine = VerticalLine { Span = 1; Start = 1};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
       | Vertical ->
-         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
+         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = 1; Start = 1}}
 
 
 
@@ -199,10 +199,6 @@ type HeaderItem = {
    Member : Member 
 }
 
-
-
-
-
 type Header = Header of HeaderItem
 
 module Header  =
@@ -212,8 +208,6 @@ module Header  =
                {  
                   Area = area
                   Member = m})
-
-       
 
    let fromDimension (direction: Direction) (area: Area) dimension  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
@@ -230,13 +224,15 @@ module Header  =
                let start = HorizontalLine.start area.HorizontalLine 
                let verticalStart = VerticalLine.start area.VerticalLine + 1
                fun ordinal ->
-                  { HorizontalLine =  HorizontalLine { Span = newSpan; Start = start + (ordinal - 1) * newSpan}; VerticalLine = VerticalLine { Span = 1 ; Start = verticalStart}}
+                  printfn "Ordinal %i" ordinal
+                  { HorizontalLine =  HorizontalLine { Span = newSpan; Start = start + ordinal * newSpan}; VerticalLine = VerticalLine { Span = 1 ; Start = verticalStart}}
           | Vertical ->
                let newSpan = VerticalLine.span area.VerticalLine |> calcSpan
                let start = VerticalLine.start area.VerticalLine 
                let horizontalStart = HorizontalLine.start area.HorizontalLine - 1
                fun ordinal ->
-                   { HorizontalLine = HorizontalLine { Span = 1; Start = horizontalStart + 1 }; VerticalLine = VerticalLine { Span = newSpan ; Start = start + (ordinal - 1) * newSpan }}
+                   printfn "Ordinal %i" ordinal
+                   { HorizontalLine = HorizontalLine { Span = 1; Start = horizontalStart + 1 }; VerticalLine = VerticalLine { Span = newSpan ; Start = start + ordinal * newSpan }}
 
       let memberHeaders = 
          members
