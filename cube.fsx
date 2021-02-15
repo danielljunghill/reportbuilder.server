@@ -178,8 +178,19 @@ type Area =
       HorizontalLine: HorizontalLine
    }
 
+type Direction = 
+   | Horizontal
+   | Vertical
+
 module Area =
-   let 
+   let init direction totalSpan =
+      match direction with
+      | Horizontal ->
+         { VerticalLine = VerticalLine { Span = 1; Start = 1};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
+      | Vertical ->
+         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
+
+
 
 let emptyArea= { VerticalLine = VerticalLine { Span = 0; Start = 0}; HorizontalLine = HorizontalLine { Span = 0; Start = 0}}  
 
@@ -189,46 +200,22 @@ type HeaderItem = {
 }
 
 
-type Position = { Span: int ; Depth: int; SpanStart: int ; DepthStart: int }
-type Direction = 
-   | Horizontal
-   | Vertical
+
+
 
 type Header = Header of HeaderItem
 
 module Header  =
-   let create  =
+   let create area =
       (Member.create (Factor 1)) 
       >> (fun m -> 
                {  
-                  Area = emptyArea
+                  Area = area
                   Member = m})
 
-   let setHorizonal horizontal hi  =
-      { hi with HorizontalLine = horizontal }
+       
 
-   let setPostionSimple count (position: Position) direction (Header (item)) =
-      let spanStart = position.SpanStart * count
-      let horizontalLine, verticalLine =
-         match direction with
-         | Horizontal ->
-            HorizontalLine { Span = position.Span; Start = spanStart}, VerticalLine { Span = 1 ; Start = position.DepthStart}
-         | Vertical ->
-            HorizontalLine { Span = 1 ; Start = position.DepthStart} , VerticalLine { Span = position.Span; Start = spanStart} 
-      Header ({ item with HorizontalLine = horizontalLine; VerticalLine = verticalLine })
-
-     
-   // let fromDimensionOld headers yspan (dimension: Dimension)  =
-   //    let memberHeaders = 
-   //       Dimension.members dimension
-   //       |> List.map (fun (DomainMember m) -> Header (create m.Name,headers))
-   //    let defaultMemberHeaders =
-   //       Dimension.defaultMember dimension
-   //       |> Option.map (fun (DefaultMember md) -> Header (md.Name |> create |> setHorizonal yspan,[]))
-   //    memberHeaders,  defaultMemberHeaders 
-
-
-   let fromDimension (direction: Direction) (Header headerItem) dimension  =
+   let fromDimension (direction: Direction) (area: Area) dimension  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
       let calcSpan span =
          match defaultMember with
@@ -236,27 +223,31 @@ module Header  =
          | None -> span 
          / members.Length
    
-      let line  =
+      let fArea  =
          match direction with
          | Horizontal ->
-               let newSpan = HorizontalLine.span headerItem.HorizontalLine |> calcSpan
-               let start = HorizontalLine.start headerItem.HorizontalLine 
-               let verticalStart = VerticalLine.start headerItem.VerticalLine + 1
+               let newSpan = HorizontalLine.span area.HorizontalLine |> calcSpan
+               let start = HorizontalLine.start area.HorizontalLine 
+               let verticalStart = VerticalLine.start area.VerticalLine + 1
                fun ordinal ->
-                  HorizontalLine { Span = newSpan; Start = start + (ordinal - 1) * newSpan}, VerticalLine { Span = 1 ; Start = verticalStart}
-          | VerticalLine ->
-               let newSpan = VerticalLine.span headerItem.VerticalLine |> calcSpan
-               let start = verticalStart.start headerItem.VerticalLine 
-               let horizontalStart = Horizontal.start headerItem.HorizontalLine - 1
+                  { HorizontalLine =  HorizontalLine { Span = newSpan; Start = start + (ordinal - 1) * newSpan}; VerticalLine = VerticalLine { Span = 1 ; Start = verticalStart}}
+          | Vertical ->
+               let newSpan = VerticalLine.span area.VerticalLine |> calcSpan
+               let start = VerticalLine.start area.VerticalLine 
+               let horizontalStart = HorizontalLine.start area.HorizontalLine - 1
                fun ordinal ->
-                  HorizontalLine { Span = 1; Start = horizontalStart + 1 }, VerticalLine { Span = newSpan ; Start = start + (ordinal - 1) * newSpan }
+                   { HorizontalLine = HorizontalLine { Span = 1; Start = horizontalStart + 1 }; VerticalLine = VerticalLine { Span = newSpan ; Start = start + (ordinal - 1) * newSpan }}
+
       let memberHeaders = 
          members
-         |> List.mapi (fun i (DomainMember m) ->  m.Name |> create |> Header)
+         |> List.mapi (fun i (DomainMember m) ->  m.Name |> create (fArea i)|> Header)
       let defaultMemberHeaders =
-         
-         |> Option.map (fun (DefaultMember md) ->  (md.Name |> create |> Header))
+         defaultMember
+         |> Option.map (fun (DefaultMember md) ->  (md.Name |> create emptyArea |> Header))
       memberHeaders , defaultMemberHeaders 
+
+
+
 
    // let fromDimension2 (dimension: Dimension)  =
    //    let memberHeaders = 
@@ -305,82 +296,59 @@ module Option =
    //    Header ({ item with XSpan = xspan; XStart = xstart; YSpan = yspan; YStart = ystart} , headers)
 
 
-let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
-let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
-let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
-let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
 
-type AccumulatedDimensions = | AccumulatedDimensions of Header List List
+type SimpleHeader = | SimpleHeader of Header
+// module SimpleHeader =
+//    let setArea direction ordernr  position (SimpleHeader header)=
+//       Header.setPostionSimple ordernr position direction header 
+//       |> SimpleHeader   
 
-// let addDimensionsToHeaders (AccumulatedDimensions accHeaders) (dimension : Dimension) =
-//   let mapHeaders headers =
-//       headers |> List.map (fun header -> [ header ])
-//   let headers, totals = HeaderItem.fromDimension dimension
-//   match accHeaders with
-//   | [] -> mapHeaders headers
-//   | _ -> accHeaders |> List.collect (fun state -> (headers |> List.map (fun header->  header :: state))) 
-//   @ mapHeaders totals 
-//   |> AccumulatedDimensions
+type TotalHeader = | TotalHeader of Header
 
-// let getHeaders dimensions =
-//    dimensions |> List.fold addDimensionsToHeaders (AccumulatedDimensions [])
+type HeadersSection = Headers of (SimpleHeader List * TotalHeader option)
 
-// getHeaders [ dim1 ; dim2; dim3  ]
+module HeadersSection =
+   let fromDimension direction area dimension =
+      let s,t = Header.fromDimension direction area dimension
+      Headers (s |> List.map SimpleHeader, t |> Option.map TotalHeader)
+
+type AccumulatedHeader = 
+   | Simple of SimpleHeader List
+   | Total of TotalHeader * SimpleHeader list
+
+  
+
+module AccumulatedHeader =
+   let lastHeader =1 
+
+//todo: Simple header a non empty list
+let addColumns direction dimension (headers: SimpleHeader List)  =
+   let (SimpleHeader (Header s)) = headers.Head
+   let simples,total = Header.fromDimension direction s.Area dimension
+   // match header with
+   // | Simple s -> 
+   let v1 = simples |> List.map (fun simple -> Simple (SimpleHeader simple :: headers)) 
+   let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,headers))
+   v1 @ v2
+
+   // | Total (t,s) ->
+   //    [ header ]
 
 
+let addColumns' direction dimension (acc: AccumulatedHeader) =
+   match acc with
+   | Total _ -> [ acc ]
+   | Simple simples -> addColumns direction dimension simples
 
-type SimpleColumn = | SimpleColumn of Header
-module SimpleColumn =
-   let setArea direction ordernr  position (SimpleColumn header)=
-      Header.setPostionSimple ordernr position direction header 
-      |> SimpleColumn
-
-type TotalColumn = | TotalColumn of Header
-
-type Columns = Columns of (SimpleColumn List * TotalColumn option)
-
-module Columns =
-   let fromDimension dimension =
-      let s,t = Header.fromDimension dimension
-      Columns (s |> List.map SimpleColumn, t |> Option.map TotalColumn)
-
-type HeaderColumn = 
-   | Simple of SimpleColumn List
-   | Total of TotalColumn * SimpleColumn list
-
-let addColumns d (header:HeaderColumn)  =
-   let (Columns (simples,total))= Columns.fromDimension d
-   match header with
-   | Simple s -> 
-         let v1 = simples |> List.map (fun simple -> Simple (simple :: s)) 
-         let v2 = total |> Option.toList |> List.map (fun t -> Total (t,s))
-         v1 @ v2
-
-   | Total (t,s) ->
-      [ header ]
-
-let addDimension (acc: HeaderColumn List) (dimension : Dimension) =
+let addDimension direction totalSpan (acc: AccumulatedHeader List) (dimension : Dimension) =
    match acc with
    | [] -> 
-      let (Columns (simples,total))= Columns.fromDimension dimension
-      let v1 = simples |> List.map (fun simple -> Simple [simple])
-      let v2 = total |> Option.toList |> List.map (fun t -> Total (t,[]))
+      let area = Area.init direction totalSpan
+      let (simples,total)=  Header.fromDimension direction area dimension
+      let v1 = simples |> List.map (fun simple -> Simple [SimpleHeader simple])
+      let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,[]))
       v1 @ v2
-   | _ -> acc |> List.collect (addColumns dimension)
-     
-let getHeaders2 dimensions =
-   dimensions |> List.fold addDimension []
-getHeaders2 [ dim1 ; dim2; dim3  ]
- 
-let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
-   match dimensionalKoncept with
-   | DimensionalAbstract (ak, koncepts) -> [Header (ak.Name |> abstractKonceptNameToString |> HeaderItem.create )] @ (koncepts |> List.collect konceptHeader)
-   | DimensionalValue vk -> [Header (vk.Name |> valueKonceptNameToString |> HeaderItem.create )] 
-
-let testKoncept = 
-    DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue  ]); ])
-[testKoncept; testKoncept] |> List.collect konceptHeader     
-
+   | _ -> acc |> List.collect (addColumns' direction dimension)
 
 let calculateSpanForDimensions dimensions =
    let rec calculataSpan dims =
@@ -391,10 +359,44 @@ let calculateSpanForDimensions dimensions =
          | DimensionWithDefault (_,m) ->  m.Members.Length * (calculataSpan tail) + 1 
          | DimensionWithoutDefault (m)-> m.Members.Length * (calculataSpan tail)
 
-   calculataSpan dimensions
+   calculataSpan dimensions    
+let getHeaders2 dimensions =
+   let totalSpan = calculateSpanForDimensions dimensions
+   dimensions |> List.fold (addDimension Direction.Horizontal totalSpan) []
+
+let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
+let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
+let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
+let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
+
+
+getHeaders2 [ dim1 ; dim2; dim3  ]
+ 
+// let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
+//    match dimensionalKoncept with
+//    | DimensionalAbstract (ak, koncepts) -> [Header (ak.Name |> abstractKonceptNameToString |> HeaderItem.create )] @ (koncepts |> List.collect konceptHeader)
+//    | DimensionalValue vk -> [Header (vk.Name |> valueKonceptNameToString |> HeaderItem.create )] 
+
+// let testKoncept = 
+//     DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue  ]); ])
+// [testKoncept; testKoncept] |> List.collect konceptHeader     
+
+
+// let calculateSpanForDimensions dimensions =
+//    let rec calculataSpan dims =
+//       match dims with
+//       |[] -> 1
+//       | head :: tail ->
+//          match head with
+//          | DimensionWithDefault (_,m) ->  m.Members.Length * (calculataSpan tail) + 1 
+//          | DimensionWithoutDefault (m)-> m.Members.Length * (calculataSpan tail)
+
+//    calculataSpan dimensions
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2; dim3  ]
+
+
 
 
 // type Position = { Row: int ; Col: int }
@@ -402,44 +404,44 @@ let width = calculateSpanForDimensions [ dim1 ; dim2; dim3  ]
 
 
 
-let addColumnsWidth direction dimension (header : HeaderColumn)  =
-   let (Columns (simples,total))= Columns.fromDimension dimension
-   //set postions for columns
-   let simplesWithLines = simples |> List.mapi (fun i s -> SimpleColumn.setArea direction i position s)
-   match header with
-   | Simple s -> 
-         //set header above new simlecolumns
-         let v1 = simplesWithLines |> List.mapi (fun i simple -> Simple (simple :: s)) 
-         let v2 = total |> Option.toList |> List.map (fun t -> Total (t,s))
-         v1 @ v2
-   | Total (t,s) ->
-      [ header ]
+// let addColumnsWidth direction dimension (header : HeaderColumn)  =
+//    let (Columns (simples,total))= Columns.fromDimension dimension
+//    //set postions for columns
+//    let simplesWithLines = simples |> List.mapi (fun i s -> SimpleColumn.setArea direction i position s)
+//    match header with
+//    | Simple s -> 
+//          //set header above new simlecolumns
+//          let v1 = simplesWithLines |> List.mapi (fun i simple -> Simple (simple :: s)) 
+//          let v2 = total |> Option.toList |> List.map (fun t -> Total (t,s))
+//          v1 @ v2
+//    | Total (t,s) ->
+//       [ header ]
 
 
 
-type AccumulatedHeader = | AccumulatedHeader of HeaderColumn List
-// x-Postion = 
-let addDimensionWidth direction (AccumulatedHeader acc) (dimension : Dimension) =
-   match acc with
-   | [] -> 
-      let (Columns (simples,total))= Columns.fromDimension dimension
-      //set position for simple
-      let v1 = simples |> List.map (fun simple -> Simple [simple])
-      //set position for total
-      let v2 = total |> Option.toList |> List.map (fun t -> Total (t,[]))
-      AccumulatedHeader (v1 @ v2)
-   | _ -> 
-         acc 
-         //recalculate
-         |> List.collect (addColumnsWidth direction dimension) 
-         |> AccumulatedHeader
+// type AccumulatedHeader = | AccumulatedHeader of HeaderColumn List
+// // x-Postion = 
+// let addDimensionWidth direction (AccumulatedHeader acc) (dimension : Dimension) =
+//    match acc with
+//    | [] -> 
+//       let (Columns (simples,total))= Columns.fromDimension dimension
+//       //set position for simple
+//       let v1 = simples |> List.map (fun simple -> Simple [simple])
+//       //set position for total
+//       let v2 = total |> Option.toList |> List.map (fun t -> Total (t,[]))
+//       AccumulatedHeader (v1 @ v2)
+//    | _ -> 
+//          acc 
+//          //recalculate
+//          |> List.collect (addColumnsWidth direction dimension) 
+//          |> AccumulatedHeader
          
-let getHeaders2Width direction dimensions =
-   let position = { Span = calculateSpanForDimensions dimensions; Depth = dimensions.Length ; DepthStart = 1 ; SpanStart = 1}
-   let acc = AccumulatedHeader []
-   // set depth for position
-   let f = addDimensionWidth direction 
-   dimensions |> List.fold f acc
+// let getHeaders2Width direction dimensions =
+//    let position = { Span = calculateSpanForDimensions dimensions; Depth = dimensions.Length ; DepthStart = 1 ; SpanStart = 1}
+//    let acc = AccumulatedHeader []
+//    // set depth for position
+//    let f = addDimensionWidth direction 
+//    dimensions |> List.fold f acc
 
-let (AccumulatedHeader acc)  = getHeaders2Width Direction.Horizontal [ dim1 ; dim2; dim3  ]
-let length = acc.Length
+// let (AccumulatedHeader acc)  = getHeaders2Width Direction.Horizontal [ dim1 ; dim2; dim3  ]
+// let length = acc.Length
