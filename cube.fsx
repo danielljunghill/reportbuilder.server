@@ -1,10 +1,8 @@
 open System
 
-
-
 type ValueKonceptId = ValueKonceptId of Guid
-type ValueKonceptName = ValueKonceptName of String
 
+type ValueKonceptName = ValueKonceptName of String
 
 let valueKonceptNameToString (ValueKonceptName name) = name
    
@@ -15,7 +13,6 @@ type  ValueKoncept =
             Selected: Boolean
     }
 type AbstractKonceptName = AbstractKonceptName of String
-
 
 let abstractKonceptNameToString (AbstractKonceptName name) = name
    
@@ -30,6 +27,7 @@ type  AbstractKoncept =
 
 let createAbstract name : AbstractKoncept=
    { Name = name ; Id = Guid.NewGuid() |> AbstractKonceptId; Selected = false}
+
 let createValue name : ValueKoncept =
    { Name = name ; Id = Guid.NewGuid() |> ValueKonceptId; Selected = false}
 
@@ -137,40 +135,28 @@ type Koncept =
     | Value of ValueKoncept
 
 
-type ParentColumn = | ParentColumn of int * DomainMember List
-
-type Axis =
-   | DomainsOnly of Domain list
-   | DomainsThenDimensionas of Domain list * DimensionalKoncept list * Domain list
-
-module ParentColumn =
-   let toValue (ParentColumn (col,dims)) = col,dims
-   let addColumn (ParentColumn (col,dims)) = ParentColumn (col + 1,dims)
-   let addMember m (ParentColumn (col,dims)) = ParentColumn (col + 1,dims @ [m])
-   let toValueFromOption pc =
-      match pc with
-      | None -> 0, []
-      | Some (ParentColumn (col, members)) -> col, members
-   let addMemberToOption m pc = 
-      toValueFromOption pc 
-      |> ParentColumn
-      |> addMember m
-      |> Some
-
-
-let xAxis (domainshead: Domain list) (dimensions: DimensionalKoncept list) (domainsrest: Domain list) =  NotImplementedException() |> raise
 
 type Line = { Span: int; Start: int }
+
 type HorizontalLine= HorizontalLine of Line
+
 module HorizontalLine =
    let span (HorizontalLine line) = line.Span
    let start (HorizontalLine line) = line.Start
-
+   let setSpan span (HorizontalLine line)  = HorizontalLine { line with Span = span}
+   let incrementStart  (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + 1}
 
 type VerticalLine = VerticalLine of Line
+
 module VerticalLine =
    let span (VerticalLine line) = line.Span
    let start (VerticalLine line) = line.Start
+   let setSpan  span (VerticalLine line)  = VerticalLine { line with Span = span}
+   let incrementStart  (VerticalLine line)  = VerticalLine { line with Start = line.Start + 1}
+
+type Direction = 
+   | Horizontal
+   | Vertical
 
 type Area =
    {
@@ -178,9 +164,6 @@ type Area =
       HorizontalLine: HorizontalLine
    }
 
-type Direction = 
-   | Horizontal
-   | Vertical
 
 module Area =
    let init direction totalSpan =
@@ -190,13 +173,30 @@ module Area =
       | Vertical ->
          { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = 1; Start = 1}}
 
+   let total (direction: Direction) depth (area: Area) =
+      let verticalLine, horizontalLine = area.VerticalLine, area.HorizontalLine
+      match direction with
+      | Horizontal ->
+         let newVertical = VerticalLine.setSpan depth verticalLine 
+         let newHorizontal = 
+            horizontalLine
+            |> HorizontalLine.setSpan 1 
+            |> HorizontalLine.incrementStart  
+         { VerticalLine = newVertical ; HorizontalLine =  horizontalLine}
+      | Vertical ->
+         let newHorizontal = HorizontalLine.setSpan depth horizontalLine 
+         let newVertical =
+            verticalLine
+            |> VerticalLine.setSpan 1 
+            |> VerticalLine.incrementStart 
+         { VerticalLine = newVertical ; HorizontalLine = newHorizontal}
 
-
-let emptyArea= { VerticalLine = VerticalLine { Span = 0; Start = 0}; HorizontalLine = HorizontalLine { Span = 0; Start = 0}}  
+let emptyArea = { VerticalLine = VerticalLine { Span = 0; Start = 0}; HorizontalLine = HorizontalLine { Span = 0; Start = 0}}  
 
 type HeaderItem = {
    Area: Area
    Member : Member 
+   Write: Boolean
 }
 
 type Header = Header of HeaderItem
@@ -207,7 +207,8 @@ module Header  =
       >> (fun m -> 
                {  
                   Area = area
-                  Member = m})
+                  Member = m
+                  Write = true})
 
    let fromDimension (direction: Direction) (area: Area) dimension  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
@@ -224,44 +225,29 @@ module Header  =
                let start = HorizontalLine.start area.HorizontalLine 
                let verticalStart = VerticalLine.start area.VerticalLine + 1
                fun ordinal ->
-                  printfn "Ordinal %i" ordinal
                   { HorizontalLine =  HorizontalLine { Span = newSpan; Start = start + ordinal * newSpan}; VerticalLine = VerticalLine { Span = 1 ; Start = verticalStart}}
           | Vertical ->
                let newSpan = VerticalLine.span area.VerticalLine |> calcSpan
                let start = VerticalLine.start area.VerticalLine 
-               let horizontalStart = HorizontalLine.start area.HorizontalLine - 1
+               let horizontalStart = HorizontalLine.start area.HorizontalLine + 1
                fun ordinal ->
-                   printfn "Ordinal %i" ordinal
-                   { HorizontalLine = HorizontalLine { Span = 1; Start = horizontalStart + 1 }; VerticalLine = VerticalLine { Span = newSpan ; Start = start + ordinal * newSpan }}
+                   { HorizontalLine = HorizontalLine { Span = 1; Start = horizontalStart}; VerticalLine = VerticalLine { Span = newSpan ; Start = start + ordinal * newSpan }}
 
       let memberHeaders = 
          members
          |> List.mapi (fun i (DomainMember m) ->  m.Name |> create (fArea i)|> Header)
+       
       let defaultMemberHeaders =
          defaultMember
          |> Option.map (fun (DefaultMember md) ->  (md.Name |> create emptyArea |> Header))
-      memberHeaders , defaultMemberHeaders 
 
-
-
-
-   // let fromDimension2 (dimension: Dimension)  =
-   //    let memberHeaders = 
-   //       Dimension.members dimension
-   //       |> List.map (fun (DomainMember m) -> Header (create m.Name,[]))
-   //    let defaultMemberHeaders =
-   //       Dimension.defaultMember dimension
-   //       |> Option.map (fun (DefaultMember md) -> Header (md.Name |> create |> setY (YSpan 1),[]))
-   //    memberHeaders , defaultMemberHeaders 
+      memberHeaders, defaultMemberHeaders 
 
 module Option =
    let toList (a: 'a option) =
       match a with
       | Some v -> [v]   
       | None -> [] 
-
-
-
 
 
 //    let create (dimensions: Dimension list) =
@@ -314,22 +300,24 @@ type AccumulatedHeader =
 
   
 
-module AccumulatedHeader =
-   let lastHeader =1 
-
 //todo: Simple header a non empty list
 let addColumns direction dimension (headers: SimpleHeader List)  =
    let (SimpleHeader (Header s)) = headers.Head
    let simples,total = Header.fromDimension direction s.Area dimension
    // match header with
+   let notWritableHeaders = headers |> List.map (fun (SimpleHeader (Header item)) -> { item with Write = false } |> Header |> SimpleHeader)
+   let mapHeaders i headers= 
+      if i = 0 then 
+         headers
+      else notWritableHeaders 
+      
    // | Simple s -> 
-   let v1 = simples |> List.map (fun simple -> Simple (SimpleHeader simple :: headers)) 
-   let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,headers))
+   let v1 = simples |> List.mapi (fun i simple -> Simple (SimpleHeader simple :: (mapHeaders i headers ))) 
+   let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,notWritableHeaders))
    v1 @ v2
 
    // | Total (t,s) ->
    //    [ header ]
-
 
 let addColumns' direction dimension (acc: AccumulatedHeader) =
    match acc with
@@ -356,9 +344,9 @@ let calculateSpanForDimensions dimensions =
          | DimensionWithoutDefault (m)-> m.Members.Length * (calculataSpan tail)
 
    calculataSpan dimensions    
-let getHeaders2 dimensions =
+let getHeaders2 direction dimensions =
    let totalSpan = calculateSpanForDimensions dimensions
-   dimensions |> List.fold (addDimension Direction.Horizontal totalSpan) []
+   dimensions |> List.fold (addDimension direction totalSpan) []
 
 let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
 let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
@@ -366,7 +354,7 @@ let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Person
 let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
 
 
-getHeaders2 [ dim1 ; dim2; dim3  ]
+getHeaders2 Direction.Horizontal [ dim1 ; dim2; dim3 ; dim4 ]
  
 // let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
 //    match dimensionalKoncept with
@@ -390,7 +378,7 @@ getHeaders2 [ dim1 ; dim2; dim3  ]
 //    calculataSpan dimensions
 
 
-let width = calculateSpanForDimensions [ dim1 ; dim2; dim3  ]
+let width = calculateSpanForDimensions [ dim1 ; dim2; dim3 ; dim4 ]
 
 
 
