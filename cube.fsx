@@ -134,8 +134,6 @@ type Koncept =
     | Abstract  of (AbstractKoncept *  Koncept List)
     | Value of ValueKoncept
 
-
-
 type Line = { Span: int; Start: int }
 
 type HorizontalLine= HorizontalLine of Line
@@ -145,14 +143,15 @@ module HorizontalLine =
    let start (HorizontalLine line) = line.Start
    let setSpan span (HorizontalLine line)  = HorizontalLine { line with Span = span}
    let incrementStart  (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + 1}
-
+   let addStart add (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + add}
 type VerticalLine = VerticalLine of Line
 
 module VerticalLine =
    let span (VerticalLine line) = line.Span
    let start (VerticalLine line) = line.Start
-   let setSpan  span (VerticalLine line)  = VerticalLine { line with Span = span}
-   let incrementStart  (VerticalLine line)  = VerticalLine { line with Start = line.Start + 1}
+   let setSpan  span (VerticalLine line) = VerticalLine { line with Span = span}
+   let incrementStart  (VerticalLine line) = VerticalLine { line with Start = line.Start + 1}
+   let addStart add (VerticalLine line)  = HorizontalLine { line with Start = line.Start + add}
 
 type Direction = 
    | Horizontal
@@ -164,30 +163,30 @@ type Area =
       HorizontalLine: HorizontalLine
    }
 
-
+type Depth = | Depth of int
 module Area =
    let init direction totalSpan =
       match direction with
       | Horizontal ->
-         { VerticalLine = VerticalLine { Span = 1; Start = 1};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
+         { VerticalLine = VerticalLine { Span = 0; Start = 0};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
       | Vertical ->
-         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = 1; Start = 1}}
+         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 0}; HorizontalLine = HorizontalLine {Span = 0; Start = 1}}
 
-   let total (direction: Direction) depth (area: Area) =
+   let total (direction: Direction) (Depth depth) (area: Area) =
       let verticalLine, horizontalLine = area.VerticalLine, area.HorizontalLine
       match direction with
       | Horizontal ->
          let newVertical = VerticalLine.setSpan depth verticalLine 
          let newHorizontal = 
             horizontalLine
-            |> HorizontalLine.setSpan 1 
+            |> HorizontalLine.addStart (1 + (HorizontalLine.span area.HorizontalLine))
             |> HorizontalLine.incrementStart  
-         { VerticalLine = newVertical ; HorizontalLine =  horizontalLine}
+         { VerticalLine = newVertical ; HorizontalLine =  newHorizontal}
       | Vertical ->
          let newHorizontal = HorizontalLine.setSpan depth horizontalLine 
          let newVertical =
             verticalLine
-            |> VerticalLine.setSpan 1 
+            |> VerticalLine.setSpan (1 + (VerticalLine.span area.VerticalLine)) 
             |> VerticalLine.incrementStart 
          { VerticalLine = newVertical ; HorizontalLine = newHorizontal}
 
@@ -210,7 +209,7 @@ module Header  =
                   Member = m
                   Write = true})
 
-   let fromDimension (direction: Direction) (area: Area) dimension  =
+   let fromDimension (direction: Direction) depth (area: Area) dimension  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
       let calcSpan span =
          match defaultMember with
@@ -237,9 +236,15 @@ module Header  =
          members
          |> List.mapi (fun i (DomainMember m) ->  m.Name |> create (fArea i)|> Header)
        
+      let da headers = 
+         let result = headers |> List.rev |> List.head |> (fun (Header item) -> item.Area)
+         printfn "header before total %A" result
+         result
       let defaultMemberHeaders =
          defaultMember
-         |> Option.map (fun (DefaultMember md) ->  (md.Name |> create emptyArea |> Header))
+         |> Option.map (fun (DefaultMember md) ->  
+            let area = Area.total direction depth (da memberHeaders)
+            (md.Name |> create area |> Header))
 
       memberHeaders, defaultMemberHeaders 
 
@@ -290,8 +295,8 @@ type TotalHeader = | TotalHeader of Header
 type HeadersSection = Headers of (SimpleHeader List * TotalHeader option)
 
 module HeadersSection =
-   let fromDimension direction area dimension =
-      let s,t = Header.fromDimension direction area dimension
+   let fromDimension direction depth area dimension =
+      let s,t = Header.fromDimension direction depth area dimension
       Headers (s |> List.map SimpleHeader, t |> Option.map TotalHeader)
 
 type AccumulatedHeader = 
@@ -301,9 +306,9 @@ type AccumulatedHeader =
   
 
 //todo: Simple header a non empty list
-let addColumns direction dimension (headers: SimpleHeader List)  =
+let addColumns direction depth dimension (headers: SimpleHeader List)  =
    let (SimpleHeader (Header s)) = headers.Head
-   let simples,total = Header.fromDimension direction s.Area dimension
+   let simples,total = Header.fromDimension direction depth s.Area dimension
    // match header with
    let notWritableHeaders = headers |> List.map (fun (SimpleHeader (Header item)) -> { item with Write = false } |> Header |> SimpleHeader)
    let mapHeaders i headers= 
@@ -319,20 +324,20 @@ let addColumns direction dimension (headers: SimpleHeader List)  =
    // | Total (t,s) ->
    //    [ header ]
 
-let addColumns' direction dimension (acc: AccumulatedHeader) =
+let addColumns' depth direction dimension (acc: AccumulatedHeader) =
    match acc with
    | Total _ -> [ acc ]
-   | Simple simples -> addColumns direction dimension simples
+   | Simple simples -> addColumns direction depth dimension simples
 
-let addDimension direction totalSpan (acc: AccumulatedHeader List) (dimension : Dimension) =
+let addDimension direction depth totalSpan (acc: AccumulatedHeader List) (dimension : Dimension) =
    match acc with
    | [] -> 
       let area = Area.init direction totalSpan
-      let (simples,total)=  Header.fromDimension direction area dimension
+      let (simples,total)=  Header.fromDimension direction depth area dimension
       let v1 = simples |> List.map (fun simple -> Simple [SimpleHeader simple])
       let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,[]))
       v1 @ v2
-   | _ -> acc |> List.collect (addColumns' direction dimension)
+   | _ -> acc |> List.collect (addColumns' depth direction dimension)
 
 let calculateSpanForDimensions dimensions =
    let rec calculataSpan dims =
@@ -346,7 +351,17 @@ let calculateSpanForDimensions dimensions =
    calculataSpan dimensions    
 let getHeaders2 direction dimensions =
    let totalSpan = calculateSpanForDimensions dimensions
-   dimensions |> List.fold (addDimension direction totalSpan) []
+   let depthTotal = Depth dimensions.Length
+   // dimensions |> List.fold (addDimension direction depthTotal totalSpan) []
+   let rec fold depth acc dimensions =
+      match dimensions with
+      | [] -> acc
+      | head :: tail -> 
+         let (Depth d) = depth
+         let nextDepth = (d - 1) |> Depth
+         let state = addDimension direction depth totalSpan acc head
+         fold nextDepth state tail
+   fold depthTotal [] dimensions 
 
 let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
 let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
@@ -354,7 +369,9 @@ let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Person
 let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
 
 
-getHeaders2 Direction.Horizontal [ dim1 ; dim2; dim3 ; dim4 ]
+let width = calculateSpanForDimensions [ dim1 ; dim2 ]
+let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2 ]
+headers.Length
  
 // let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
 //    match dimensionalKoncept with
@@ -378,7 +395,6 @@ getHeaders2 Direction.Horizontal [ dim1 ; dim2; dim3 ; dim4 ]
 //    calculataSpan dimensions
 
 
-let width = calculateSpanForDimensions [ dim1 ; dim2; dim3 ; dim4 ]
 
 
 
