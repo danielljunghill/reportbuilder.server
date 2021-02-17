@@ -79,11 +79,6 @@ module Dimension =
       | DimensionWithDefault (_,d) -> d.Members
       | DimensionWithoutDefault (d) -> d.Members
 
-   // let defaultMember dimension =
-   //     match dimension with
-   //       | DimensionWithDefault (d,_) ->  [ d ]
-   //       | DimensionWithoutDefault (_) -> []
-
    let defaultMember dimension =
        match dimension with
          | DimensionWithDefault (d,_) ->  Some d 
@@ -114,9 +109,10 @@ type HyperDimension =
 
 type HyperCubeName = | HyperCubeName of String
 
-
 let hyperCubeNameToString (HyperCubeName name) = name
+
 type HyperCubeId = HyperCubeId of Guid
+
 type  HyperCube =
     {
            Name: HyperCubeName
@@ -143,7 +139,7 @@ module HorizontalLine =
    let start (HorizontalLine line) = line.Start
    let setSpan span (HorizontalLine line)  = HorizontalLine { line with Span = span}
    let incrementStart  (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + 1}
-   let addStart add (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + add}
+   let inrcementStartWithSpan (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + line.Span}
 type VerticalLine = VerticalLine of Line
 
 module VerticalLine =
@@ -151,7 +147,7 @@ module VerticalLine =
    let start (VerticalLine line) = line.Start
    let setSpan  span (VerticalLine line) = VerticalLine { line with Span = span}
    let incrementStart  (VerticalLine line) = VerticalLine { line with Start = line.Start + 1}
-   let addStart add (VerticalLine line)  = HorizontalLine { line with Start = line.Start + add}
+   let inrcementStartWithSpan (VerticalLine line)  = VerticalLine { line with Start = line.Start + line.Span}
 
 type Direction = 
    | Horizontal
@@ -170,7 +166,7 @@ module Area =
       | Horizontal ->
          { VerticalLine = VerticalLine { Span = 0; Start = 0};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
       | Vertical ->
-         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 0}; HorizontalLine = HorizontalLine {Span = 0; Start = 1}}
+         { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = 0; Start = 0}}
 
    let total (direction: Direction) (Depth depth) (area: Area) =
       let verticalLine, horizontalLine = area.VerticalLine, area.HorizontalLine
@@ -179,15 +175,15 @@ module Area =
          let newVertical = VerticalLine.setSpan depth verticalLine 
          let newHorizontal = 
             horizontalLine
-            |> HorizontalLine.addStart (1 + (HorizontalLine.span area.HorizontalLine))
-            |> HorizontalLine.incrementStart  
+            |> HorizontalLine.inrcementStartWithSpan 
+            |> HorizontalLine.setSpan 1
          { VerticalLine = newVertical ; HorizontalLine =  newHorizontal}
       | Vertical ->
          let newHorizontal = HorizontalLine.setSpan depth horizontalLine 
          let newVertical =
             verticalLine
-            |> VerticalLine.setSpan (1 + (VerticalLine.span area.VerticalLine)) 
-            |> VerticalLine.incrementStart 
+            |> VerticalLine.inrcementStartWithSpan 
+            |> VerticalLine.setSpan 1 
          { VerticalLine = newVertical ; HorizontalLine = newHorizontal}
 
 let emptyArea = { VerticalLine = VerticalLine { Span = 0; Start = 0}; HorizontalLine = HorizontalLine { Span = 0; Start = 0}}  
@@ -370,78 +366,97 @@ let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2 ]
-let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2 ]
-headers.Length
- 
-// let rec konceptHeader (dimensionalKoncept: DimensionalKoncept) =
-//    match dimensionalKoncept with
-//    | DimensionalAbstract (ak, koncepts) -> [Header (ak.Name |> abstractKonceptNameToString |> HeaderItem.create )] @ (koncepts |> List.collect konceptHeader)
-//    | DimensionalValue vk -> [Header (vk.Name |> valueKonceptNameToString |> HeaderItem.create )] 
+let headers = getHeaders2 Direction.Vertical [ dim1 ; dim2; dim3 ]
+let header = headers |> List.rev |> List.head
 
-// let testKoncept = 
-//     DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue  ]); ])
-// [testKoncept; testKoncept] |> List.collect konceptHeader     
+let calcSpan koncept =
+   let rec span state (koncept: DimensionalKoncept) =
+      let newState = state + 1
+      match koncept with
+      | DimensionalAbstract (_, koncepts) -> 
+           let rec span' state koncepts =
+               match koncepts with
+               | [] -> [ newState ]
+               | head :: tail ->    
+                  span newState head
+                  @ span' newState tail
+           span' state koncepts
+      | DimensionalValue _ ->
+            [ newState ] 
+   span 0 koncept 
+
+let headersFromKoncepts koncepts =
+   
+   let rec konceptHeader span (dimensionalKoncept: DimensionalKoncept) =
+      match dimensionalKoncept with
+      | DimensionalAbstract (ak, koncepts) -> 
+            printfn "State %A" span
+            [  Header (ak.Name 
+               |> abstractKonceptNameToString 
+               |> Header.create emptyArea)
+            ] @ (koncepts |> List.collect (konceptHeader (span + 1)) )
+      | DimensionalValue vk -> 
+            printfn "State %A" span
+            [
+               Header (vk.Name 
+               |> valueKonceptNameToString 
+               |> Header.create emptyArea)
+            ] 
+   koncepts |> List.collect (konceptHeader 1)
+
+let rec depth (dimensionalKoncept: DimensionalKoncept) =
+   match dimensionalKoncept with
+   | DimensionalAbstract (_, koncepts) -> 
+        let rec calc koncepts =
+           match koncepts with
+           | [] -> [1]
+           | head :: tail ->
+               depth head @ calc tail
+   
+        calc koncepts
+   | DimensionalValue _ -> [ 1 ]
+
+let ca name koncepts =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), koncepts)
+let ca1 name koncept =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), [ koncept ])
+let empty = ca "e" []
+let t = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [] )))
+let t' = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [t ] )))
+let t2 = ca "head" [ t; t ;empty; empty]
+let testKoncept = 
+    DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue ]); ])
+let testKoncept1 = 
+    DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue;testKoncept ;testKoncept]); ])
+let testKoncept2 = 
+    DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue ; testKoncept1]); ])
 
 
-// let calculateSpanForDimensions dimensions =
-//    let rec calculataSpan dims =
-//       match dims with
-//       |[] -> 1
-//       | head :: tail ->
-//          match head with
-//          | DimensionWithDefault (_,m) ->  m.Members.Length * (calculataSpan tail) + 1 
-//          | DimensionWithoutDefault (m)-> m.Members.Length * (calculataSpan tail)
-
-//    calculataSpan dimensions
+let headers1 = headersFromKoncepts [ testKoncept1 ; testKoncept2 ]
 
 
 
+let rec span (koncept: DimensionalKoncept) =
+   match koncept with
+   | DimensionalAbstract (_, koncepts) -> 
+           if koncepts.IsEmpty then  1
+                 
+           else
+           let rec span' koncepts =
+               match koncepts with
+               | [] -> 0
+               | head :: tail ->    
+                  span head
+                  + span' tail 
+           span' koncepts
+   | DimensionalValue _ -> 1
+
+
+span t2
+ 1 t2 
 
 
 
-// type Position = { Row: int ; Col: int }
 
 
 
 
-// let addColumnsWidth direction dimension (header : HeaderColumn)  =
-//    let (Columns (simples,total))= Columns.fromDimension dimension
-//    //set postions for columns
-//    let simplesWithLines = simples |> List.mapi (fun i s -> SimpleColumn.setArea direction i position s)
-//    match header with
-//    | Simple s -> 
-//          //set header above new simlecolumns
-//          let v1 = simplesWithLines |> List.mapi (fun i simple -> Simple (simple :: s)) 
-//          let v2 = total |> Option.toList |> List.map (fun t -> Total (t,s))
-//          v1 @ v2
-//    | Total (t,s) ->
-//       [ header ]
 
-
-
-// type AccumulatedHeader = | AccumulatedHeader of HeaderColumn List
-// // x-Postion = 
-// let addDimensionWidth direction (AccumulatedHeader acc) (dimension : Dimension) =
-//    match acc with
-//    | [] -> 
-//       let (Columns (simples,total))= Columns.fromDimension dimension
-//       //set position for simple
-//       let v1 = simples |> List.map (fun simple -> Simple [simple])
-//       //set position for total
-//       let v2 = total |> Option.toList |> List.map (fun t -> Total (t,[]))
-//       AccumulatedHeader (v1 @ v2)
-//    | _ -> 
-//          acc 
-//          //recalculate
-//          |> List.collect (addColumnsWidth direction dimension) 
-//          |> AccumulatedHeader
-         
-// let getHeaders2Width direction dimensions =
-//    let position = { Span = calculateSpanForDimensions dimensions; Depth = dimensions.Length ; DepthStart = 1 ; SpanStart = 1}
-//    let acc = AccumulatedHeader []
-//    // set depth for position
-//    let f = addDimensionWidth direction 
-//    dimensions |> List.fold f acc
-
-// let (AccumulatedHeader acc)  = getHeaders2Width Direction.Horizontal [ dim1 ; dim2; dim3  ]
-// let length = acc.Length
