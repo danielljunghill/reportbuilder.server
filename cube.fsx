@@ -138,6 +138,7 @@ module HorizontalLine =
    let span (HorizontalLine line) = line.Span
    let start (HorizontalLine line) = line.Start
    let setSpan span (HorizontalLine line)  = HorizontalLine { line with Span = span}
+   let setStart start (HorizontalLine line)  = HorizontalLine { line with Start = start}
    let incrementStart  (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + 1}
    let inrcementStartWithSpan (HorizontalLine line)  = HorizontalLine { line with Start = line.Start + line.Span}
 type VerticalLine = VerticalLine of Line
@@ -146,6 +147,7 @@ module VerticalLine =
    let span (VerticalLine line) = line.Span
    let start (VerticalLine line) = line.Start
    let setSpan  span (VerticalLine line) = VerticalLine { line with Span = span}
+   let setStart start (VerticalLine line)  = VerticalLine { line with Start = start}
    let incrementStart  (VerticalLine line) = VerticalLine { line with Start = line.Start + 1}
    let inrcementStartWithSpan (VerticalLine line)  = VerticalLine { line with Start = line.Start + line.Span}
 
@@ -167,6 +169,42 @@ module Area =
          { VerticalLine = VerticalLine { Span = 0; Start = 0};  HorizontalLine = HorizontalLine {Span = totalSpan; Start = 1}}
       | Vertical ->
          { VerticalLine = VerticalLine  { Span = totalSpan; Start = 1}; HorizontalLine = HorizontalLine {Span = 0; Start = 0}}
+
+   let incrementVerticalStart (area: Area)=
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v |> VerticalLine.inrcementStartWithSpan; HorizontalLine = h}
+  
+   let incrementHorizontalStart (area: Area)=
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v ; HorizontalLine = h |> HorizontalLine.incrementStart }            
+
+   let setHorizontalStart start area =
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v ; HorizontalLine = h |> HorizontalLine.setStart start }         
+
+   let setVerticalStart start area =
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v |> VerticalLine.setStart start ; HorizontalLine = h }  
+
+   let setVerticalSpan span area =
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v |> VerticalLine.setSpan span ; HorizontalLine = h }  
+
+   let setHorizontalSpan span area =
+      let v, h = area.VerticalLine, area.HorizontalLine
+      { VerticalLine = v ; HorizontalLine = h |> HorizontalLine.setSpan span }
+
+   let verticalStart area =
+      VerticalLine.start  area.VerticalLine
+
+   let horizontalStart area = 
+      HorizontalLine.start area.HorizontalLine
+
+   let verticalSpan area =
+      VerticalLine.span area.VerticalLine
+
+   let horizontalSpan area =
+      HorizontalLine.span area.HorizontalLine
 
    let total (direction: Direction) (Depth depth) (area: Area) =
       let verticalLine, horizontalLine = area.VerticalLine, area.HorizontalLine
@@ -385,24 +423,28 @@ let calcSpan koncept =
             [ newState ] 
    span 0 koncept 
 
-let headersFromKoncepts koncepts =
-   
-   let rec konceptHeader span (dimensionalKoncept: DimensionalKoncept) =
-      match dimensionalKoncept with
+let headersForKontext (koncepts: DimensionalKoncept List)=
+   let maxSpan = koncepts |> List.collect calcSpan |> List.max
+   let area y x  = 
+      { VerticalLine = VerticalLine { Start = y; Span = 1}; HorizontalLine = HorizontalLine { Start = x ; Span = maxSpan - x + 1 } }
+ 
+   let rec konceptHeader span (koncept: DimensionalKoncept) =
+      match koncept with
       | DimensionalAbstract (ak, koncepts) -> 
             printfn "State %A" span
             [  Header (ak.Name 
                |> abstractKonceptNameToString 
-               |> Header.create emptyArea)
+               |> Header.create (area 1 span))
             ] @ (koncepts |> List.collect (konceptHeader (span + 1)) )
       | DimensionalValue vk -> 
             printfn "State %A" span
             [
                Header (vk.Name 
                |> valueKonceptNameToString 
-               |> Header.create emptyArea)
+               |> Header.create (area 1 span))
             ] 
    koncepts |> List.collect (konceptHeader 1)
+   |> List.mapi (fun i (Header item) -> { item with Area = item.Area |> Area.setVerticalStart (i + 1) })
 
 let rec depth (dimensionalKoncept: DimensionalKoncept) =
    match dimensionalKoncept with
@@ -418,10 +460,11 @@ let rec depth (dimensionalKoncept: DimensionalKoncept) =
 
 let ca name koncepts =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), koncepts)
 let ca1 name koncept =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), [ koncept ])
+let ca2 name =  ca name []
 let empty = ca "e" []
 let t = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [] )))
 let t' = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [t ] )))
-let t2 = ca "head" [ t; t ;empty; empty]
+let t2 = ca "head" [ ca2 "first"  ; ca2 "second"]
 let testKoncept = 
     DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue ]); ])
 let testKoncept1 = 
@@ -430,28 +473,109 @@ let testKoncept2 =
     DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue ; testKoncept1]); ])
 
 
-let headers1 = headersFromKoncepts [ testKoncept1 ; testKoncept2 ]
+let headers1 = headersForKontext [ testKoncept1 ; testKoncept2 ]
 
 
 
-let rec span (koncept: DimensionalKoncept) =
+let rec calculateSpan (koncept: DimensionalKoncept) =
    match koncept with
    | DimensionalAbstract (_, koncepts) -> 
            if koncepts.IsEmpty then  1
                  
            else
-           let rec span' koncepts =
-               match koncepts with
-               | [] -> 0
-               | head :: tail ->    
-                  span head
-                  + span' tail 
-           span' koncepts
+              let rec span' koncepts =
+                  match koncepts with
+                  | [] -> 0
+                  | head :: tail ->    
+                     calculateSpan head
+                     + span' tail 
+              span' koncepts
    | DimensionalValue _ -> 1
 
+let count = calculateSpan t2
 
-span t2
- 1 t2 
+let setVerticalStart area =
+      if area |> Area.verticalStart = 0 then 
+         area |> Area.setVerticalStart 1
+      else area
+let setHorizontalStart area = 
+      if area |> Area.horizontalStart = 0 then 
+         area |> Area.setHorizontalStart 1
+      else area
+let setstart = setVerticalStart >> setHorizontalStart
+let calculateSameLevelArea (direction: Direction) span area  =
+         let newArea =
+            match direction with
+            | Horizontal  -> 
+                //vertical start = span + area start  
+               //add + 1 to horizontal
+               //set vertical span
+               let prevStart = Area.verticalStart area
+               let prevSpan = Area.verticalSpan area
+               area 
+               |> Area.setVerticalStart (prevStart + prevSpan)
+               |> Area.setVerticalSpan span
+               |> Area.setHorizontalSpan 1
+            | Vertical ->  
+               let prevStart = Area.horizontalStart area
+               let prevSpan = Area.horizontalSpan area
+               area 
+               |> Area.setHorizontalStart (prevStart + prevSpan)
+               |> Area.setHorizontalSpan span
+               |> Area.setVerticalSpan 1
+         let newArea2 = newArea |> setstart   
+         printfn "New Area: %A" newArea2
+         newArea2
+         
+let calculateSubLevelArea (direction: Direction) area kontext =
+   let span = calculateSpan kontext
+
+   match direction with
+   | Horizontal  -> 
+      //add + 1 to horizontal
+      //set vertical span
+
+       area |> Area.incrementHorizontalStart |> Area.setVerticalSpan span 
+   | Vertical ->  
+       area |> Area.incrementVerticalStart |> Area.setHorizontalSpan span
+          //calculate new area 
+   |> setstart
+let rec kontextHeadersAsTree (direction: Direction) (pa: Area) (kontexts: DimensionalKoncept list) =
+   match kontexts with
+   | [] -> []
+   | head :: tail ->
+      
+      let rec kontextHeader (area: Area) (kontext: DimensionalKoncept) =    
+          match kontext with
+          | DimensionalAbstract (ak, koncepts) ->
+               [  ak.Name |> abstractKonceptNameToString |> Header.create area ]
+               @
+               match koncepts with
+               | [] -> []
+               | head :: tail ->
+                  //calculate pa för head
+                  let area = calculateSubLevelArea direction area head
+                  kontextHeader area head
+                  //calculate pa for tail
+                  @ kontextHeadersAsTree direction area tail
+          | DimensionalValue vk ->
+                let header = [  vk.Name |> valueKonceptNameToString |> Header.create pa ]
+                header
+      
+      let span = calculateSpan head
+      let newArea =  calculateSameLevelArea direction span pa
+      printfn "newArea %A Header %A" newArea head
+      kontextHeader newArea head
+      //calculate pa for tail
+      @ kontextHeadersAsTree direction newArea tail
+
+kontextHeadersAsTree Direction.Horizontal emptyArea [ t2 ; t2]
+kontextHeadersAsTree Direction.Horizontal emptyArea [ t ; t]
+
+
+let kk = emptyArea |> setstart
+// span t2
+//  1 t2 
 
 
 
