@@ -460,11 +460,13 @@ let rec depth (dimensionalKoncept: DimensionalKoncept) =
 
 let ca name koncepts =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), koncepts)
 let ca1 name koncept =  DimensionalAbstract ((name|> AbstractKonceptName |> createAbstract), [ koncept ])
+let cv name = DimensionalValue (name |> ValueKonceptName |> createValue )
 let ca2 name =  ca name []
 let empty = ca "e" []
 let t = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [] )))
 let t' = ca1 "1" (ca1 "2" (ca1 "3" (ca "4" [t ] )))
-let t2 = ca "head" [ ca2 "first"  ; ca2 "second"]
+let t2 = ca "head" [ ca2 "first"  ; ca2 "second"; cv "third"]
+let t3 = ca "head" [ t2 ]
 let testKoncept = 
     DimensionalAbstract ("Abstract1"|> AbstractKonceptName |> createAbstract, [DimensionalAbstract ("Abstract2"|> AbstractKonceptName |> createAbstract , [ "Value1" |>  ValueKonceptName |> createValue |> DimensionalValue ]); ])
 let testKoncept1 = 
@@ -540,6 +542,15 @@ let calculateSubLevelArea (direction: Direction) area kontext =
        area |> Area.incrementVerticalStart |> Area.setHorizontalSpan span
           //calculate new area 
    |> setstart
+
+let calculateValueArea direction area =
+   match direction with
+   | Horizontal  -> 
+       area |> Area.incrementVerticalStart
+   | Vertical ->  
+       area |> Area.incrementHorizontalStart
+          //calculate new area 
+   |> setstart
 let rec kontextHeadersAsTree (direction: Direction) (pa: Area) (kontexts: DimensionalKoncept list) =
    match kontexts with
    | [] -> []
@@ -559,7 +570,7 @@ let rec kontextHeadersAsTree (direction: Direction) (pa: Area) (kontexts: Dimens
                   //calculate pa for tail
                   @ kontextHeadersAsTree direction area tail
           | DimensionalValue vk ->
-                let header = [  vk.Name |> valueKonceptNameToString |> Header.create pa ]
+                let header = [  vk.Name |> valueKonceptNameToString |> Header.create (calculateValueArea direction pa)]
                 header
       
       let span = calculateSpan head
@@ -571,6 +582,7 @@ let rec kontextHeadersAsTree (direction: Direction) (pa: Area) (kontexts: Dimens
 
 kontextHeadersAsTree Direction.Horizontal emptyArea [ t2 ; t2]
 kontextHeadersAsTree Direction.Horizontal emptyArea [ t ; t]
+kontextHeadersAsTree Direction.Horizontal emptyArea [ t3]
 
 
 let kk = emptyArea |> setstart
