@@ -311,13 +311,13 @@ module Header  =
          |> List.head 
          |> (fun (Header item) -> item.Area)
 
-      let defaultMemberHeaders =
+      let defaultMemberHeader =
          defaultMember
          |> Option.map (fun (DefaultMember md) ->  
             let area = Area.total direction depth (getLastHeader memberHeaders)
             (md.Name |> create area |> Header))
 
-      memberHeaders, defaultMemberHeaders 
+      memberHeaders, defaultMemberHeader 
 
 module Option =
    let toList (a: 'a option) =
