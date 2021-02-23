@@ -1,5 +1,69 @@
 open System
 
+type NList<'a> =
+   {
+         Head: 'a
+         Tail: 'a List 
+   }
+
+module NList =
+
+   let create a =
+      {
+            Head = a
+            Tail = []
+      }
+
+   let create2 m l =
+      {
+            Head = m
+            Tail = l
+      }
+
+   let toList m = 
+     [ m.Head ] @ m.Tail
+
+   let length m =
+      1 + (m.Tail |> List.length)
+     
+
+   let last m =
+      match m.Tail |> List.rev with
+      | [] -> m.Head
+      | head :: _ -> head
+
+   let map f m =
+      {
+            Head = f m.Head
+            Tail = m.Tail |> List.map f
+      }
+      
+   let mapi f m =
+      let rec mapi' i m =
+         match m with
+         | [] -> []
+         | head :: tail -> [ f i head ] @ mapi' (i + 1) tail
+      {
+         Head = f 0 m.Head
+         Tail =  mapi' 1 m.Tail         
+      }
+
+   let append n m =
+      { n with Tail = n.Tail @ m}
+
+   let addFirst n m =
+
+      let tail = toList m
+      {
+         Head = n
+         Tail = tail
+      }
+
+   let addList n m =
+      { n with  Tail = n.Tail @ m }
+
+   
+       
 type ValueKonceptId = ValueKonceptId of Guid
 
 type ValueKonceptName = ValueKonceptName of String
@@ -48,7 +112,7 @@ module Member =
       { Id = Guid.NewGuid(); Name = name ; Factor = factor}
 
    let fromList (f: 'a -> Member)  m = 
-      m |> List.map f
+      m |> NList.map f
 
 type DomainMember = | DomainMember of Member
 module DomainMember =
@@ -60,7 +124,7 @@ let domainMemberToString (DomainMember m) = m
 type Domain =
     {
       Name: DomainName
-      Members:  DomainMember List
+      Members:  DomainMember NList
     }
 
 type DefaultMember = | DefaultMember of Member  
@@ -88,13 +152,13 @@ module Dimension =
    let fromListWithDefault f d m =
           m 
           |> Member.fromList f 
-          |> List.map DomainMember
+          |> NList.map DomainMember
           |> fun members ->  DimensionWithDefault ((Member.create (Factor 1) (sprintf "total:%A" d) |> DefaultMember),{ Name = d ; Members = members })
   
    let fromListWithoutDefault f d m =
           m 
           |> Member.fromList f 
-          |> List.map DomainMember
+          |> NList.map DomainMember
           |> fun members ->  DimensionWithoutDefault ({ Name = d ; Members = members })
 
    let fromStringListWithDefault =
@@ -260,28 +324,28 @@ let emptyArea = { VerticalLine = VerticalLine ({ Span = (Span 0); Start = (Start
 
 type HeaderItem = {
    Area: Area
-   Member : Member 
+   Member : Member NList
    Write: Boolean
 }
 
-type Header = Header of HeaderItem
+type DomainHeader = DomainHeader of HeaderItem
 
-module Header  =
-   let create area =
+module DomainHeader  =
+   let create area l =
       (Member.create (Factor 1)) 
-      >> (fun m -> 
+      >> (fun m  -> 
                {  
                   Area = area
-                  Member = m
+                  Member = NList.create2 m l
                   Write = true})
 
-   let fromDimension (direction: Direction) depth (area: Area) dimension  =
+   let fromDimension (direction: Direction) depth (area: Area) dimension (pm:Member List)  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
       let calcSpan (Span span) =
          match defaultMember with
          | Some _ -> (span - 1)
          | None -> span 
-         / members.Length
+         / NList.length members
          |> Span
 
       let calcStart ordinal (Start start) (Span span)  =
@@ -303,19 +367,18 @@ module Header  =
 
       let memberHeaders = 
          members
-         |> List.mapi (fun i (DomainMember m) ->  m.Name |> create (calcArea direction area i)|> Header)
+         |> NList.mapi (fun i (DomainMember m) ->  m.Name |> create (calcArea direction area i) pm |> DomainHeader)
        
       let getLastHeader headers = 
          headers 
-         |> Lists.rev 
-         |> List.head 
-         |> (fun (Header item) -> item.Area)
+         |> NList.last 
+         |> (fun (DomainHeader item) -> item.Area)
 
       let defaultMemberHeader =
          defaultMember
          |> Option.map (fun (DefaultMember md) ->  
             let area = Area.total direction depth (getLastHeader memberHeaders)
-            (md.Name |> create area |> Header))
+            (md.Name |> create area pm|> DomainHeader))
 
       memberHeaders, defaultMemberHeader 
 
@@ -325,7 +388,17 @@ module Option =
       | Some v -> [v]   
       | None -> [] 
 
+   let reverse m =
+      let rec reverse' a =
+         match a with
+         | [] -> []
+         | head :: tail ->
+            reverse' tail @ [ head ]
+      reverse' m
 
+   let l = [ 1 ; 2 ; 3 ; 5]
+
+let n = Option.reverse [ 1 ; 2 ; 3 ; 5]
 //    let create (dimensions: Dimension list) =
 //       let rec create' (dimensions: Dimension list)  (parent: Header option)=
 //             match dimensions with
@@ -355,59 +428,66 @@ module Option =
 
 
 
-type SimpleHeader = | SimpleHeader of Header
-// module SimpleHeader =
-//    let setArea direction ordernr  position (SimpleHeader header)=
-//       Header.setPostionSimple ordernr position direction header 
-//       |> SimpleHeader   
+// type SimpleHeader = | SimpleHeader of DomainHeader
+// // module SimpleHeader =
+// //    let setArea direction ordernr  position (SimpleHeader header)=
+// //       Header.setPostionSimple ordernr position direction header 
+// //       |> SimpleHeader   
 
-type TotalHeader = | TotalHeader of Header
+// type TotalHeader = | TotalHeader of DomainHeader
 
-type HeadersSection = Headers of (SimpleHeader List * TotalHeader option)
 
-module HeadersSection =
-   let fromDimension direction depth area dimension =
-      let s,t = Header.fromDimension direction depth area dimension
-      Headers (s |> List.map SimpleHeader, t |> Option.map TotalHeader)
 
 type AccumulatedHeader = 
-   | Simple of SimpleHeader List
-   | Total of TotalHeader * SimpleHeader list
+   | MemberHeader of DomainHeader NList
+   | TotalHeader of DomainHeader NList
 
-  
+module AccumulatedHeader =
+   let asColumnMembers (acc: AccumulatedHeader) =
+      match acc with
+         | MemberHeader headers -> headers
+         | TotalHeader headers -> headers
+     |> (fun headers -> headers.Head)
+     |> (fun (DomainHeader item)-> item.Member)
 
+   let asHeaders  (acc: AccumulatedHeader) =
+       match acc with
+       | MemberHeader headers -> headers
+       | TotalHeader headers -> headers
+       |> NList.toList
 //todo: Simple header a non empty list
-let addColumns direction depth dimension (headers: SimpleHeader List)  =
-   let (SimpleHeader (Header s)) = headers.Head
-   let simples,total = Header.fromDimension direction depth s.Area dimension
+let addColumns direction depth dimension (headers: DomainHeader NList)  =
+   let (DomainHeader header) = headers.Head
+   let simples,total = DomainHeader.fromDimension direction depth header.Area dimension (header.Member |> NList.toList)
    // match header with
-   let notWritableHeaders = headers |> List.map (fun (SimpleHeader (Header item)) -> { item with Write = false } |> Header |> SimpleHeader)
    let mapHeaders i headers= 
       if i = 0 then 
-         headers
-      else notWritableHeaders 
-      
+         headers |> NList.toList
+      else 
+         [] 
    // | Simple s -> 
-   let v1 = simples |> List.mapi (fun i simple -> Simple (SimpleHeader simple :: (mapHeaders i headers ))) 
-   let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,notWritableHeaders))
-   v1 @ v2
+   let v1 = simples |> NList.mapi (fun i m -> MemberHeader (NList.create2 m (mapHeaders i headers ))) 
+   let v2 = total |> Option.toList |> List.map  (NList.create >> TotalHeader)
+   NList.addList v1 v2
 
    // | Total (t,s) ->
    //    [ header ]
 
 let addColumns' depth direction dimension (acc: AccumulatedHeader) =
    match acc with
-   | Total _ -> [ acc ]
-   | Simple simples -> addColumns direction depth dimension simples
+   | TotalHeader _ -> NList.create acc
+   | MemberHeader m -> addColumns direction depth dimension m
+   |> NList.toList
 
 let addDimension direction depth totalSpan (acc: AccumulatedHeader List) (dimension : Dimension) =
    match acc with
    | [] -> 
       let area = Area.init direction totalSpan
-      let (simples,total)=  Header.fromDimension direction depth area dimension
-      let v1 = simples |> List.map (fun simple -> Simple [SimpleHeader simple])
-      let v2 = total |> Option.toList |> List.map (fun t -> Total (TotalHeader t,[]))
-      v1 @ v2
+      let (members,total)=  DomainHeader.fromDimension direction depth area dimension []
+      let v1 = members |> NList.map (NList.create >> MemberHeader)
+      let v2 = total |> Option.toList |> List.map (NList.create >> TotalHeader)
+      NList.addList v1 v2
+      |> NList.toList
    | _ -> acc |> List.collect (addColumns' depth direction dimension)
 
 let calculateSpanForDimensions dimensions =
@@ -416,8 +496,8 @@ let calculateSpanForDimensions dimensions =
       |[] -> 1
       | head :: tail ->
          match head with
-         | DimensionWithDefault (_,m) ->  m.Members.Length * (calculataSpan tail) + 1 
-         | DimensionWithoutDefault (m)-> m.Members.Length * (calculataSpan tail)
+         | DimensionWithDefault (_,m) ->  (NList.length m.Members) * (calculataSpan tail) + 1 
+         | DimensionWithoutDefault (m)-> (NList.length m.Members) * (calculataSpan tail)
 
    calculataSpan dimensions 
    |> Span 
@@ -436,14 +516,18 @@ let getHeaders2 direction dimensions =
          fold nextDepth state tail
    fold depthTotal [] dimensions 
 
-let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") [ "kv1"; "kv2" ] 
-let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien") [  "Sverige"; "Norge"] 
-let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt") [  "Personbil"; "Lastbil" ] 
-let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"; "Lätt" ] 
+let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") (NList.create2 "kv1" ["kv2" ]) 
+let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien")  (NList.create2 "Sverige" ["Norge" ])
+let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt")  (NList.create2 "Personbil" ["Lastbil" ]) 
+let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2")  (NList.create2 "Tung" ["Latt" ])
 
 
-let width = calculateSpanForDimensions [ dim1 ; dim2 ]
-let headers = getHeaders2 Direction.Vertical [ dim1 ; dim2; dim3 ]
+let width = calculateSpanForDimensions [ dim1 ; dim2; dim3 ]
+let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2; dim3 ]
+
+
+let columns = headers |> List.map AccumulatedHeader.asColumnMembers
+let structure = headers |> List.collect AccumulatedHeader.asHeaders
 let header = headers |> List.rev |> List.head
 
 let calcSpan koncept =
@@ -645,9 +729,9 @@ let kk = emptyArea |> setstart
 //  1 t2 
 
 
+let dd = [ 1; 2 ; 3 ; 4]
+
+let dd2 = dd @ [ 5 ]
 
 
-
-
-
-
+List.append [ 1; 2 ; 3 ; 4] [ 5 ]
