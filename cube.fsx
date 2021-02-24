@@ -307,7 +307,7 @@ module Header  =
        
       let getLastHeader headers = 
          headers 
-         |> Lists.rev 
+         |> List.rev 
          |> List.head 
          |> (fun (Header item) -> item.Area)
 
@@ -325,7 +325,17 @@ module Option =
       | Some v -> [v]   
       | None -> [] 
 
+   let reverse m =
+      let rec reverse' a =
+         match a with
+         | [] -> []
+         | head :: tail ->
+            reverse' tail @ [ head ]
+      reverse' m
 
+   let l = [ 1 ; 2 ; 3 ; 5]
+
+let n = Option.reverse [ 1 ; 2 ; 3 ; 5]
 //    let create (dimensions: Dimension list) =
 //       let rec create' (dimensions: Dimension list)  (parent: Header option)=
 //             match dimensions with
@@ -443,7 +453,7 @@ let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2") [  "Tung"
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2 ]
-let headers = getHeaders2 Direction.Vertical [ dim1 ; dim2; dim3 ]
+let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2 ]
 let header = headers |> List.rev |> List.head
 
 let calcSpan koncept =
@@ -645,9 +655,9 @@ let kk = emptyArea |> setstart
 //  1 t2 
 
 
+let dd = [ 1; 2 ; 3 ; 4]
+
+let dd2 = dd @ [ 5 ]
 
 
-
-
-
-
+List.append [ 1; 2 ; 3 ; 4] [ 5 ]

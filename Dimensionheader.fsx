@@ -325,7 +325,6 @@ let emptyArea = { VerticalLine = VerticalLine ({ Span = (Span 0); Start = (Start
 type HeaderItem = {
    Area: Area
    Member : Member NList
-   Write: Boolean
 }
 
 type DomainHeader = DomainHeader of HeaderItem
@@ -336,8 +335,7 @@ module DomainHeader  =
       >> (fun m  -> 
                {  
                   Area = area
-                  Member = NList.create2 m l
-                  Write = true})
+                  Member = NList.create2 m l})
 
    let fromDimension (direction: Direction) depth (area: Area) dimension (pm:Member List)  =
       let members, defaultMember = Dimension.members dimension, Dimension.defaultMember dimension
@@ -399,68 +397,46 @@ module Option =
    let l = [ 1 ; 2 ; 3 ; 5]
 
 let n = Option.reverse [ 1 ; 2 ; 3 ; 5]
-//    let create (dimensions: Dimension list) =
-//       let rec create' (dimensions: Dimension list)  (parent: Header option)=
-//             match dimensions with
-//             | [ dimension ] -> 
-//                   let (state,d) = HeaderItem.fromDimension dimension 
-//                   match parent with
-//                   | Some p -> 
-//                      let (Header (item,headers)) = p
-//                      [ Header (item, headers @ state @ (d |> Option.toList)) ]
-//                   | None -> state @ (d |> Option.toList)
-//             | head :: tail -> 
-//                let state,d = HeaderItem.fromDimension head 
-//                let newState = 
-//                   state 
-//                   |> List.collect (Some >> (create' tail)) 
-//                //add to parent
-//                match parent with
-//                | Some p -> 
-//                      let (Header (item,headers)) = p
-//                      [ Header (item, headers @ newState @ (d |> Option.toList)) ]
-//                | None -> newState @ (d |> Option.toList)
-
-//             | [] -> []
-//       create' dimensions None
-   // let setPostion xspan xstart yspan ystart (Header (item, headers)) =
-   //    Header ({ item with XSpan = xspan; XStart = xstart; YSpan = yspan; YStart = ystart} , headers)
 
 
 
-// type SimpleHeader = | SimpleHeader of DomainHeader
-// // module SimpleHeader =
-// //    let setArea direction ordernr  position (SimpleHeader header)=
-// //       Header.setPostionSimple ordernr position direction header 
-// //       |> SimpleHeader   
-
-// type TotalHeader = | TotalHeader of DomainHeader
-
-
-
-type AccumulatedHeader = 
+type TableHeader = 
    | MemberHeader of DomainHeader NList
    | TotalHeader of DomainHeader NList
 
-module AccumulatedHeader =
-   let asColumnMembers (acc: AccumulatedHeader) =
+type Column = Column of Member NList
+
+type ColumnHeader = 
+   {
+       IsTotal: Boolean
+       Member: Member
+       Area: Area
+   }
+let domainHeaderAsColumnHeader isTotal (DomainHeader d) =
+   {
+      Area = d.Area
+      IsTotal = isTotal
+      Member = d.Member.Head
+   }
+module TableHeader =
+   let columns (acc: TableHeader) =
       match acc with
          | MemberHeader headers -> headers
          | TotalHeader headers -> headers
-     |> (fun headers -> headers.Head)
-     |> (fun (DomainHeader item)-> item.Member)
+        |> (fun headers -> headers.Head)
+        |> (fun (DomainHeader item)-> Column item.Member)
 
-   let asHeaders  (acc: AccumulatedHeader) =
+   let headers  (acc: TableHeader) =
        match acc with
-       | MemberHeader headers -> headers
-       | TotalHeader headers -> headers
+       | MemberHeader headers -> headers |> NList.map (domainHeaderAsColumnHeader false)
+       | TotalHeader headers -> headers |> NList.map (domainHeaderAsColumnHeader true)
        |> NList.toList
 //todo: Simple header a non empty list
 let addColumns direction depth dimension (headers: DomainHeader NList)  =
    let (DomainHeader header) = headers.Head
    let simples,total = DomainHeader.fromDimension direction depth header.Area dimension (header.Member |> NList.toList)
    // match header with
-   let mapHeaders i headers= 
+   let mapHeaders i headers = 
       if i = 0 then 
          headers |> NList.toList
       else 
@@ -473,13 +449,13 @@ let addColumns direction depth dimension (headers: DomainHeader NList)  =
    // | Total (t,s) ->
    //    [ header ]
 
-let addColumns' depth direction dimension (acc: AccumulatedHeader) =
+let addColumns' depth direction dimension (acc: TableHeader) =
    match acc with
    | TotalHeader _ -> NList.create acc
    | MemberHeader m -> addColumns direction depth dimension m
    |> NList.toList
 
-let addDimension direction depth totalSpan (acc: AccumulatedHeader List) (dimension : Dimension) =
+let addDimension direction depth totalSpan (acc: TableHeader List) (dimension : Dimension) =
    match acc with
    | [] -> 
       let area = Area.init direction totalSpan
@@ -503,19 +479,33 @@ let calculateSpanForDimensions dimensions =
    |> Span 
 
 let getHeaders2 direction dimensions =
-   let totalSpan = calculateSpanForDimensions dimensions
-   let depthTotal = Depth dimensions.Length
+   // let totalSpan = calculateSpanForDimensions dimensions
+   // let depthTotal = Depth dimensions.Length
    // dimensions |> List.fold (addDimension direction depthTotal totalSpan) []
-   let rec fold depth acc dimensions =
+   let rec fold depth span acc dimensions  =
       match dimensions with
       | [] -> acc
       | head :: tail -> 
          let (Depth d) = depth
          let nextDepth = (d - 1) |> Depth
-         let state = addDimension direction depth totalSpan acc head
-         fold nextDepth state tail
-   fold depthTotal [] dimensions 
+         let state = addDimension direction depth span acc head
+         fold nextDepth span state tail 
+   let span = calculateSpanForDimensions dimensions
+   fold (Depth dimensions.Length) span [] dimensions 
 
+// let getHeaders2 direction dimensions =
+//    let totalSpan = calculateSpanForDimensions dimensions
+//    let depthTotal = Depth dimensions.Length
+//    // dimensions |> List.fold (addDimension direction depthTotal totalSpan) []
+//    let rec fold depth acc dimensions =
+//       match dimensions with
+//       | [] -> acc
+//       | head :: tail -> 
+//          let (Depth d) = depth
+//          let nextDepth = (d - 1) |> Depth
+//          let state = addDimension direction depth totalSpan acc head
+//          fold nextDepth state tail
+//    fold depthTotal [] dimensions 
 let dim1 = Dimension.fromStringListWithDefault (DomainName "Kvartal") (NList.create2 "kv1" ["kv2" ]) 
 let dim2 = Dimension.fromStringListWithDefault (DomainName "Scandinavien")  (NList.create2 "Sverige" ["Norge" ])
 let dim3 = Dimension.fromStringListWithDefault (DomainName "Produkt")  (NList.create2 "Personbil" ["Lastbil" ]) 
@@ -523,11 +513,11 @@ let dim4 = Dimension.fromStringListWithDefault (DomainName "Produkt2")  (NList.c
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2; dim3 ]
-let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2; dim3 ]
+let headers = getHeaders2 Direction.Horizontal [ dim1 ; dim2 ]
 
 
-let columns = headers |> List.map AccumulatedHeader.asColumnMembers
-let structure = headers |> List.collect AccumulatedHeader.asHeaders
+let columns = headers |> List.map TableHeader.columns
+let structure = headers |> List.collect TableHeader.headers 
 let header = headers |> List.rev |> List.head
 
 let calcSpan koncept =

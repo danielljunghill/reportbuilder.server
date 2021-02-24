@@ -143,8 +143,8 @@ module DimensionalKoncept =
             | _ -> Error "cannot add"
 
 
-   let createValue =
-        ValueKoncept.create >> DimensionalKoncept.ValueKoncept
+   // let createValue =
+   //      ValueKoncept.create >> DimensionalKoncept.ValueKoncept
  
 
    let maybeAdd (koncept: DimensionalKoncept option) (parent: ParentDimensionalKoncept option)  =
