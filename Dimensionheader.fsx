@@ -520,21 +520,6 @@ let columns = headers |> List.map TableHeader.columns
 let structure = headers |> List.collect TableHeader.headers 
 let header = headers |> List.rev |> List.head
 
-let calcSpan koncept =
-   let rec span state (koncept: DimensionalKoncept) =
-      let newState = state + 1
-      match koncept with
-      | DimensionalAbstract (_, koncepts) -> 
-           let rec span' state koncepts =
-               match koncepts with
-               | [] -> [ newState ]
-               | head :: tail ->    
-                  span newState head
-                  @ span' newState tail
-           span' state koncepts
-      | DimensionalValue _ ->
-            [ newState ] 
-   span 0 koncept 
 
 type KonceptHeaderItem =
    | Abstract of AbstractKoncept
@@ -618,8 +603,38 @@ let rec calculateSpan (koncept: DimensionalKoncept) =
               span' koncepts
    | DimensionalValue _ -> 1
 
+// let calcSpan koncept =
+//    let rec span state (koncept: DimensionalKoncept) =
+//       let newState = state + 1
+//       match koncept with
+//       | DimensionalAbstract (_, koncepts) -> 
+//            let rec span' state koncepts =
+//                match koncepts with
+//                | [] -> [ state ]
+//                | head :: tail ->    
+//                   span newState head
+//                   @ span' newState tail
+//            span' state koncepts
+//       | DimensionalValue _ ->
+//             [ newState ] 
+//    span 0 koncept 
+let calcSpan koncept =
+   let rec span state (koncept: DimensionalKoncept) =
+      let newState = state + 1
+      match koncept with
+      | DimensionalAbstract (_, koncepts) -> 
+           let rec span' koncepts =
+               match koncepts with
+               | [] -> [ newState ]
+               | head :: tail ->    
+                  span newState head
+                  @ span' tail
+           span' newState koncepts
+      | DimensionalValue _ ->
+            [ newState ] 
+   span 0 koncept 
 
-let count = calculateSpan t2
+let count = calcSpan t3
 
 let setVerticalStart area =
       if area |> Area.verticalStart = Start 0 then 
