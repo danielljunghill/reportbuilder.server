@@ -1,6 +1,11 @@
-
 module Model
    open System
+
+   module Option =
+      let asList a =
+         match a with
+          | Some v -> [v]
+          | None -> []
    type NList<'a> =
       {
             Head: 'a
@@ -62,132 +67,171 @@ module Model
       let addList n m =
          { n with  Tail = n.Tail @ m }
          
-   type ValueKonceptId = ValueKonceptId of Guid
+//   module Koncepts.Model exposing (..)
+// import Id exposing (..)
+// import Id
+// import NList exposing (..)
+// -- import Events.Custom exposing (onClickStopPropagation)
 
+   type Id = Id of Guid
+   module Id =
+      let create() = Guid.NewGuid() |> Id
+
+   type ValueKonceptId = ValueKonceptId  of Id
    type ValueKonceptName = ValueKonceptName of String
 
-   let valueKonceptNameToString (ValueKonceptName name) = name
-      
+   
+   let valueKonceptNameToString (ValueKonceptName name) =
+      name
+
    type  ValueKoncept =
        {
-               Name: ValueKonceptName
-               Id: ValueKonceptId
-               Selected: Boolean
+              Name: ValueKonceptName
+              Id: ValueKonceptId
+              Selected: bool
        }
    type AbstractKonceptName = AbstractKonceptName of String
 
-   let abstractKonceptNameToString (AbstractKonceptName name) = name
-      
-   type AbstractKonceptId = AbstractKonceptId of Guid
 
+   let abstractKonceptNameToString (AbstractKonceptName name) =
+      name
+   type AbstractKonceptId = AbstractKonceptId of Id
    type  AbstractKoncept =
        {
-               Name : AbstractKonceptName
-               Id : AbstractKonceptId
-               Selected: Boolean
+              Name : AbstractKonceptName
+              Id : AbstractKonceptId
+              Selected: bool
        }
+       
 
-   let createAbstract name : AbstractKoncept=
-      { Name = name ; Id = Guid.NewGuid() |> AbstractKonceptId; Selected = false}
-
-   let createValue name : ValueKoncept =
-      { Name = name ; Id = Guid.NewGuid() |> ValueKonceptId; Selected = false}
-
-   type DomainName = | DomainName of String
+   type DomainName = DomainName of String
 
    let domainNameToString (DomainName name) = name
 
-   type Factor = | Factor of int
-   type Member =
+   type Factor = Factor of int
+   type  Member =
       {
-         Id: Guid
-         Name: String
-         Factor: Factor
+            Id : Id
+            Name: String
+            Factor: Factor
       }
 
-   module Member =
-      let create factor name  =
-         { Id = Guid.NewGuid(); Name = name ; Factor = factor}
+   // createMember: Factor -> String -> Member
+   let createMember factor name =
+      {
+            Id = Id.create()
+            Factor = factor
+            Name = name
+      }
+   type DomainMember = DomainMember of Member
 
-      let fromList (f: 'a -> Member)  m = 
-         m |> NList.map f
 
-   type DomainMember = | DomainMember of Member
-   module DomainMember =
-      let create factor name  = 
-         Member.create factor name 
-        |> DomainMember
+   let createDomainMember factor name =
+      createMember factor name 
+      |> DomainMember
 
-   let domainMemberToString (DomainMember m) = m
+   
+   let domainMemberToString (DomainMember m) = m.Name
    type Domain =
        {
-         Name: DomainName
-         Members:  DomainMember NList
+            Name: DomainName
+            Members:  DomainMember NList
        }
 
-   type DefaultMember = | DefaultMember of Member  
-   module DefaultMember =
-      let create factor name  = 
-         Member.create factor name 
-        |> DefaultMember
+   type DefaultMember = DefaultMember of Member  
+   // createDefaultMember: Factor -> String -> DefaultMember
+   let createDefaultMember factor name =
+      createMember factor name 
+      |> DefaultMember
 
    type Dimension =
-      | DimensionWithDefault of (DefaultMember*Domain)
-      | DimensionWithoutDefault of Domain
+        | DimensionWithDefault of (DefaultMember * Domain)
+        | DimensionWithoutDefault of Domain
 
    module Dimension =
-      let members dimension =
-         match dimension with
-         | DimensionWithDefault (_,d) -> d.Members
-         | DimensionWithoutDefault (d) -> d.Members
+      let createDomain name first rest : Domain =
+            { 
+                  Name = DomainName name; 
+                  Members =    
+                     NList.create2 first rest 
+                     |> NList.map (fun s -> s |> createMember (Factor 1) |>DomainMember )
+             }
 
-      let defaultMember dimension =
-          match dimension with
-            | DimensionWithDefault (d,_) ->  Some d 
-            | DimensionWithoutDefault (_) -> None
+      let createWithDefault name first rest =
+          let dm = createDefaultMember (Factor 1) (sprintf "Total:%s" name)
+          DimensionWithDefault (dm,createDomain name first rest)
+      
+      let createWithoutDefault name first rest =
+         DimensionWithoutDefault (createDomain name first rest)
+          
+   // dimensionMembers: Dimension -> NList DomainMember
+   let dimensionMembers dimension =
+      match dimension with 
+         | DimensionWithDefault (_,m) -> m.Members
+         | DimensionWithoutDefault m -> m.Members
 
-
-      let fromListWithDefault f d m =
-             m 
-             |> Member.fromList f 
-             |> NList.map DomainMember
-             |> fun members ->  DimensionWithDefault ((Member.create (Factor 1) (sprintf "total:%A" d) |> DefaultMember),{ Name = d ; Members = members })
-     
-      let fromListWithoutDefault f d m =
-             m 
-             |> Member.fromList f 
-             |> NList.map DomainMember
-             |> fun members ->  DimensionWithoutDefault ({ Name = d ; Members = members })
-
-      let fromStringListWithDefault =
-            fromListWithDefault (Member.create (Factor 1))
-
-      let fromStringListWithoutDefault =
-            fromListWithoutDefault (Member.create (Factor 1))
-
+   // memberDefault: Dimension -> Maybe DefaultMember
+   let memberDefault dimension =
+      match dimension with 
+         | DimensionWithDefault (d,_) -> Some d
+         | DimensionWithoutDefault _ -> None
+      
    type HyperDimension =
         | Opened of Dimension
         | Closed of Dimension
 
-   type HyperCubeName = | HyperCubeName of String
+   // hyperDimensionAsDimension: HyperDimension -> Dimension
+   let hyperDimensionAsDimension hyperDimension =
+       match hyperDimension with
+          | Opened dimension -> dimension
+          | Closed dimension -> dimension
 
+   type HyperCubeName = HyperCubeName of String
+
+   // hyperCubeNameToString: HyperCubeName -> String
    let hyperCubeNameToString (HyperCubeName name) = name
-
-   type HyperCubeId = HyperCubeId of Guid
-
+   type HyperCubeId = HyperCubeId of Id
    type  HyperCube =
        {
-              Name: HyperCubeName
-              Head: HyperDimension
-              Tail:  HyperDimension List
-              List: HyperCubeId
+               Name: HyperCubeName
+               Dimensions: HyperDimension NList
+               Id: HyperCubeId
        }
 
+
    type DimensionalKoncept =
-       | DimensionalAbstract  of (AbstractKoncept*  DimensionalKoncept List) 
+       | DimensionalAbstract  of (AbstractKoncept *  DimensionalKoncept List) 
        | DimensionalValue of ValueKoncept
 
    type Koncept =
-       Cube  of (HyperCube * DimensionalKoncept List)
-       | Abstract  of (AbstractKoncept *  Koncept List)
+       | Cube  of HyperCube *  DimensionalKoncept List 
+       | Abstract  of AbstractKoncept * Koncept List
        | Value of ValueKoncept
+
+   // createValueKonceptWithSelection: Bool -> String -> ValueKoncept   
+   let createValueKonceptWithSelection selected name : ValueKoncept =
+           {
+                Id = Id.create() |> ValueKonceptId 
+                Name = name |> ValueKonceptName
+                Selected = selected }
+
+   // createAbstractKonceptWithSelection: Bool -> String -> AbstractKoncept
+   let createAbstractKonceptWithSelection selected name  =  
+           {
+               Id = Id.create() |> AbstractKonceptId 
+               Name = AbstractKonceptName name   
+               Selected = selected               
+           } 
+
+   // createValueKoncept: String -> ValueKoncept   
+   let createValueKoncept = createValueKonceptWithSelection false
+
+
+   // createAbstractKoncept: String -> AbstractKoncept
+   let createAbstractKoncept = createAbstractKonceptWithSelection false
+
+
+   type ModelAction<'a> = 
+      Delete 
+      | MapValue of 'a
+      | Ignore         

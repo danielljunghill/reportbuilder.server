@@ -6,11 +6,9 @@ module Area
 
    let spanAdd (Span span1) (Span span2) = Span (span1 + span2)
 
-
    let spanMap f (Span span) =
       f span
       |> Span
-
 
    let spanIncrement = spanMap (fun i -> i + 1) 
 
@@ -34,7 +32,6 @@ module Area
       |> f 
       |> HorizontalSpan
 
-
    let horizontalSpanToSpan (HorizontalSpan span) = span
 
    let horizontalSpanToInt = horizontalSpanToSpan >> spanInt
@@ -51,25 +48,20 @@ module Area
 
    let startIncrement = startMap (fun i -> i + 1) 
      
-
    let startAdd (Start start1) (Start start2) = Start (start1 + start2)
-
 
    let startSpan f (Start start) (Span span) =
       f start span
-
 
    let spanStart f  (Span span) (Start start)=
       f start span
 
    type VerticalStart = VerticalStart of Start
 
-
    let verticalStartMap f (VerticalStart start) =
       start   
       |> f 
       |> VerticalStart
-
 
    let verticalStartToStart (VerticalStart start) = start  
 
@@ -84,14 +76,12 @@ module Area
       |> f 
       |> HorizontalStart
 
-
    let horizontalStartToStart (HorizontalStart start) = start
 
 
    let horizontalStartToInt = horizontalStartToStart >> startInt
 
    let intToHorizontalStart = Start >> HorizontalStart
-
 
    type Area =
       {
@@ -100,8 +90,6 @@ module Area
             VerticalStart: VerticalStart
             VerticalSpan: VerticalSpan
       }
-
-
    type Direction =
       Vertical
       | Horizontal

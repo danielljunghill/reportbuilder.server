@@ -1,5 +1,8 @@
 open System
 
+
+let intList: int List = []
+let v = List.max intList
 // type ValueKonceptId = | ValueKonceptId of Guid
 
 // type DimensionalAbstractKonceptId = | AbstractKonceptId of Guid

@@ -1,11 +1,6 @@
 open System
 #load "Model.fsx"
 #load "Area.fsx"
-
-   
-       
-
-
 type HeaderItem = {
    Area: Area
    Member : Member NList
