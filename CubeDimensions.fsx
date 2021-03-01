@@ -247,24 +247,20 @@ let addDimensionToTableHeaders direction depth span dimension acc =
     match acc with
         | [] -> 
                let area = initArea direction span
-               let first, second = fromDimension direction depth area dimension []
-     
-               let v1 =  
-                    first
+               let members, total = fromDimension direction depth area dimension []  
+               let memberHeaders =  
+                    members
                     |> NList.map (NList.create >> MemberHeader)
-
-               let v2 = 
-                  second
+               let totalHeader = 
+                  total
                   |> Option.asList
-                  |> List.map (NList.create >> TotalHeader)
-            
-               NList.addList v1 v2
+                  |> List.map (NList.create >> TotalHeader)       
+               NList.addList memberHeaders totalHeader
                |> NList.toList
         | _ -> acc |> List.collect (addDimensionToTableHeader direction depth dimension)
 
 // calculateSpanForDimensions: List Dimension -> Span
 let calculateSpanForDimensions dimensions =
-
     let rec recCalculateSpan d =
          match d with
           |  [] -> 1

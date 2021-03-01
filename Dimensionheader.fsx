@@ -1,6 +1,7 @@
 open System
-#load "Model.fsx"
-#load "Area.fsx"
+#load "Area.fs"
+#load "Model.fs"
+
 type HeaderItem = {
    Area: Area
    Member : Member NList
