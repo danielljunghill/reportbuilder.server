@@ -6,11 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
- 
-    <Compile Include="koncept.fs"/>
-    <Compile Include="Hypercube.fs"/>
-    <Compile Include="Dimensions.fs"/>
-    <Compile Include="Reportmodel.fs"/>
+    <Compile Include="Area.fs"/>
+    <Compile Include="Model.fs"/>
     <Compile Include="Program.fs" />
   </ItemGroup>
 

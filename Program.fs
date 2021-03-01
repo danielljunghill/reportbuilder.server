@@ -1,6 +1,8 @@
 ﻿// Learn more about F# at http://fsharp.org
 module Program
 open System
+open Area
+open Model
 
 [<EntryPoint>]
 let main argv =
