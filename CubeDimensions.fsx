@@ -332,10 +332,7 @@ let dimensionColumnHeaders headers =
    |> List.collect tableHeaderToDimensionColumnHeader
 
 
-let dim1 = Dimension.createWithDefault "Kvartal" "kv1" ["kv2" ]
-let dim3 = Dimension.createWithDefault "Produkt" "Personbil" ["Lastbil" ]
-let dim4 = Dimension.createWithDefault "Produkt2" "Tung" ["Latt" ]
-let dim2 = Dimension.createWithDefault "Scandinavien"  "Sverige" ["Norge" ]
+let dim1 = Dimension.createWithDefault "Kvartal" "kv1" [ "kv2" ]
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2 ]
