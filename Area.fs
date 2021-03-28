@@ -147,6 +147,15 @@ module Area
    let horizontalSpan (area: Area)  =
       area.HorizontalSpan |> horizontalSpanToSpan
 
+   let verticalStartAdd (VerticalStart start1) (VerticalStart start2) =
+      start1 
+      |> startAdd start2
+      |> VerticalStart
+
+   let horizontalStartAdd (HorizontalStart start1) (HorizontalStart start2) =
+      start1 
+      |> startAdd start2
+      |> HorizontalStart
 
    let emptyArea =  
        {    
@@ -155,3 +164,43 @@ module Area
             VerticalStart = intToVerticalStart 0
             VerticalSpan = intToVerticalSpan 0
        }
+
+
+   type Offset = 
+      {
+         VerticalStart: VerticalStart
+         HorizontalStart: HorizontalStart
+      }
+   
+   let emptyOffset = 
+      { 
+         VerticalStart = 0 |> Start |>  VerticalStart
+         HorizontalStart = 0 |> Start |> HorizontalStart }
+
+   let offsetAddVertical (offset: Offset)  (start: VerticalStart) =
+        { offset with   VerticalStart = verticalStartAdd offset.VerticalStart start }
+           
+   let offsetAddHorizontal (offset: Offset)  (start: HorizontalStart) =
+       { offset with   HorizontalStart = horizontalStartAdd offset.HorizontalStart start }
+
+
+   let offset (offset: Offset) (area: Area) =
+        { area with VerticalStart = area.VerticalStart  |> verticalStartAdd offset.VerticalStart }
+        |> (fun state ->  { state with HorizontalStart = state.HorizontalStart  |> horizontalStartAdd offset.HorizontalStart })
+
+   let addVerticalStartToOffset offset vStart    =
+
+         let startOffest = offset.VerticalStart |> verticalStartToStart   
+
+         let start = vStart |> verticalStartToStart  
+      
+         { offset with  VerticalStart = start |> startAdd startOffest |> VerticalStart }
+
+   let addHorizontalStartToOffset offset hStart  =
+      
+ 
+         let startOffest = offset.HorizontalStart |> horizontalStartToStart   
+
+         let start = hStart |> horizontalStartToStart  
+      
+         { offset  with HorizontalStart = start |> startAdd startOffest |> HorizontalStart }

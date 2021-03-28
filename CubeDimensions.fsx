@@ -333,10 +333,33 @@ let dimensionColumnHeaders headers =
 
 
 let dim1 = Dimension.createWithDefault "Kvartal" "kv1" [ "kv2" ]
+let dim3 = Dimension.createWithDefault "Produkt" "Personbil" [ "Lastbil" ]
+let dim4 = Dimension.createWithDefault "Produkt2" "Tung" [ "Latt" ]
+let dim2 = Dimension.createWithDefault "Scandinavien"  "Sverige" [ "Norge" ]
 
 
 let width = calculateSpanForDimensions [ dim1 ; dim2 ]
 let headers = calculateTableHeaders Direction.Horizontal [ dim1 ; dim2 ]
+
+type DimensionOffset = DimensionOffset of Offset
+type CubeColumns = {
+      Offset: DimensionOffset
+      Columns: DimensionColumns 
+      Headers: DimensionColumnHeader List
+}
+
+let calculateCubeColums direction dimensions =
+    let result = calculateTableHeaders direction dimensions
+    let offset =
+       match direction with
+            | Horizontal -> offsetAddVertical Area.emptyOffset (dimensions.Length |> Start |> VerticalStart)
+            | Vertical -> offsetAddHorizontal Area.emptyOffset (dimensions.Length |> Start |> HorizontalStart)
+            
+    {
+         Columns = dimensionColumns result
+         Headers = dimensionColumnHeaders result
+         Offset = offset |> DimensionOffset
+    }
 
 
 // let columns = headers |> List.map TableHeader.columns
