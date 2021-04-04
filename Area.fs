@@ -94,7 +94,6 @@ module Area
       Vertical
       | Horizontal
 
-   type Depth = Depth of int
 
 
    let incrementVerticalStart area =
@@ -204,3 +203,6 @@ module Area
          let start = hStart |> horizontalStartToStart  
       
          { offset  with HorizontalStart = start |> startAdd startOffest |> HorizontalStart }
+
+   type Depth = Depth of int
+   let depthInt (Depth depth) = depth

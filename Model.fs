@@ -1,6 +1,6 @@
 module Model
    open System
-
+   open Area
    module Option =
       let asList a =
          match a with
@@ -84,11 +84,13 @@ module Model
    let valueKonceptNameToString (ValueKonceptName name) =
       name
 
+   type Factor = Factor of int
    type  ValueKoncept =
        {
               Name: ValueKonceptName
               Id: ValueKonceptId
               Selected: bool
+              Factor : Factor
        }
    type AbstractKonceptName = AbstractKonceptName of String
 
@@ -96,11 +98,13 @@ module Model
    let abstractKonceptNameToString (AbstractKonceptName name) =
       name
    type AbstractKonceptId = AbstractKonceptId of Id
+   type SequenceId = SequenceId of int
    type  AbstractKoncept =
        {
               Name : AbstractKonceptName
               Id : AbstractKonceptId
               Selected: bool
+              SequenceId : SequenceId
        }
        
 
@@ -108,7 +112,7 @@ module Model
 
    let domainNameToString (DomainName name) = name
 
-   type Factor = Factor of int
+
    type  Member =
       {
             Id : Id
@@ -213,14 +217,20 @@ module Model
            {
                 Id = Id.create() |> ValueKonceptId 
                 Name = name |> ValueKonceptName
-                Selected = selected }
+                Selected = selected 
+                Factor = Factor 7
+                
+           }
+
+
 
    // createAbstractKonceptWithSelection: Bool -> String -> AbstractKoncept
    let createAbstractKonceptWithSelection selected name  =  
            {
                Id = Id.create() |> AbstractKonceptId 
                Name = AbstractKonceptName name   
-               Selected = selected               
+               Selected = selected  
+               SequenceId = SequenceId 1             
            } 
 
    // createValueKoncept: String -> ValueKoncept   
@@ -235,3 +245,13 @@ module Model
       Delete 
       | MapValue of 'a
       | Ignore         
+
+
+   type TableHeader<'a> =
+      {
+         Span: Span
+         Start: Start
+         Item: 'a 
+         Depth: Area.Depth
+      }
+
