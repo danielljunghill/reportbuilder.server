@@ -45,7 +45,7 @@ type Header =
       Depth: Depth
       Name: String
       Attributes: Attribute List 
-      Identifiers: NList HeaderIdentifier
+      Identifiers: HeaderIdentifier NList
    }
 
 
@@ -123,13 +123,17 @@ module KonceptMemberIdentity =
          let incrementStart (Start start) =
             start + 1
             |> Start
+         let calcSpan = 
+            koncepts 
+            |> List.collect calculateSpan 
+            |> List.max  
          let rec createHeaders' depth start koncept =
                match koncept with
                | DimensionalAbstract (ak, koncepts) -> 
                      [ 
-                        { Start = start ; Span = Span 1 ; Depth = depth; Identifiers = ak.SequenceId |> NList.create |> HeaderIdentifier }
+                        { Start = start ; Span = Span 1 ; Depth = depth; Identifiers = ak.SequenceId |> Sequence |> NList.create  ; Attributes = [] ; Name = abstractKonceptNameToString ak.Name}
                      ] @ (koncepts |> List.collect (createHeaders' (incrementDepth depth) (incrementStart start)))
-               | DimensionalValue vk ->  [{ Start = start ; Span = Span 1 ; Depth = depth; Identifiers = vk.Factor |> NList.create |> HeaderIdentifier}]
+               | DimensionalValue vk ->  [{ Start = start ; Span = Span 1 ; Depth = depth; Identifiers = vk.Factor |> Factor |> NList.create  ; Attributes = []; Name = valueKonceptNameToString vk.Name}]
    
          koncepts |> List.collect (createHeaders' (Depth 1) (Start 1))
 
